@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <sstream>
 #include <vector>
+#include <fstream>
+#include "scores.h"
 
 #define INT_MAX 2147483647
 #define INT_MIN -2147483647
@@ -19,22 +21,140 @@ const char boxCoord[9]  = { 0,1,2,0,1,2,0,1,2 };
 const char gridCoord[9] = { 0,0,0,1,1,1,2,2,2 };
 const char adjacentCoord[3] =  { 1,2,0 };
 const char adjacentCoord2[3] = { 2,0,1 };
+const unsigned short int pow3[9] = { 1, 3, 9, 27, 81, 243, 729, 2187, 6561 };
+const unsigned int pow4[9] = { 1, 4, 16, 64, 256, 1024, 4096, 16384, 65536 };
 const int scorePerGrid = 20;
 
-int getOpponent(int player)
+//signed char scores[19683];
+//char gridWinners[19683];
+//short int gridScores[262144];
+
+char getOpponent(char player)
 {
 	/*Takes an input player-id and returns the opposing player-id*/
-	return !(player - 1) + 1;
+	return player ^ 3; //Player XOR 3 will toggle the first two bits. 1 -> 2 and 2 -> 1.
 }
+
+struct board_small
+{
+	signed char playable = 9;
+	char winner = 0;
+	short int score = 0;
+	int macroBoard = 0;
+	short int field[3][3] = { { 0,0,0 },{ 0,0,0 },{ 0,0,0 } };
+	board_small* PVNode = NULL;
+	//long long int field = 0;
+
+	void draw_board()
+	{
+		short int val[3][3];
+		memcpy(val, field, sizeof(short int) * 3 * 3);
+		for (int gridY = 0; gridY < 3; ++gridY)
+		{
+			for (int y = 0; y < 3; ++y)
+			{
+				for (int gridX = 0; gridX < 3; ++gridX)
+				{
+					for (int x = 0; x < 3; ++x)
+					{
+						cout << val[gridX][gridY] % 3;
+						val[gridX][gridY] /= 3;
+					}
+					cout << " ";
+				}
+				cout << endl;
+			}
+			cout << endl;
+		}
+
+		int mboard = macroBoard;
+		for (int gridY = 0; gridY < 3; ++gridY)
+		{
+			for (int gridX = 0; gridX < 3; ++gridX)
+			{
+				int b = mboard % 4;
+				if (b == 0 && (3 * gridY + gridX == playable || playable == -1))
+				{
+					cout << "-1 ";
+				}
+				else {
+					cout << " " << b << " ";
+				}
+				mboard /= 4;
+			}
+			cout << endl;
+		}
+		cout << endl;
+	}
+
+	void play_move(char player, char fieldX, char fieldY)
+	{
+		char x = boxCoord[fieldX];
+		char y = boxCoord[fieldY];
+		char gridX = gridCoord[fieldX];
+		char gridY = gridCoord[fieldY];
+
+		score -= scores[field[gridX][gridY]];
+
+		field[gridX][gridY] += pow3[3 * y + x] * player;
+		char gridWinner = gridWinners[field[gridX][gridY]];
+		if (gridWinner != 0)
+		{
+			score -= gridScores[macroBoard];
+			macroBoard += pow4[3 * gridY + gridX] * gridWinner;
+			int gridScore = gridScores[macroBoard];
+			if (gridScore == SHRT_MAX)
+			{
+				winner = 1;
+				score = SHRT_MAX;
+				return;
+			}
+			else if (gridScore == SHRT_MIN+1)
+			{
+				winner = 2;
+				score = SHRT_MIN + 1;
+				return;
+			}
+			else
+				score += gridScores[macroBoard];
+		}
+		else
+			score += scores[field[gridX][gridY]];
+		playable = 3 * y + x;
+		if ((macroBoard / pow4[playable]) % 4 != 0)
+		{
+			playable = -1;
+		}
+	}
+
+	board_small()
+	{
+
+	}
+	/*
+	board_small(board_small* copy)
+	{
+		winner = 0;
+		score = copy->score;
+		macroBoard = copy->macroBoard;
+		std::copy(&copy->field[0][0], &copy->field[0][0] + 3 * 3, &field[0][0]);
+	}
+	*/
+	~board_small()
+	{
+		delete PVNode;
+	}
+};
 
 class board_simple
 {
 public:
-	char field[3][3][3][3];
-	signed char macroBoard[3][3];
-	short int gridScores[3][3] = { {0,0,0},{ 0,0,0 },{ 0,0,0 } };
-	short int score = 0;
 	char winner = 0;
+	short int score = 0;
+	signed char macroBoard[3][3];
+	short int gridScores[3][3] = { { 0,0,0 },{ 0,0,0 },{ 0,0,0 } };
+	char field[3][3][3][3];
+	
 
 	void play_move(char player, char fieldX, char fieldY);
 	short int get_score(char player);
@@ -64,10 +184,6 @@ board_simple* board_simple::copy()
 
 void board_simple::play_move(char player, char fieldX, char fieldY)
 {
-	//int x = fieldX % 3;
-	//int y = fieldY % 3;
-	//int gridX = fieldX / 3;
-	//int gridY = fieldY / 3;
 	char x = boxCoord[fieldX];
 	char y = boxCoord[fieldY];
 	char gridX = gridCoord[fieldX];
@@ -75,26 +191,6 @@ void board_simple::play_move(char player, char fieldX, char fieldY)
 
 	score -= gridScores[gridX][gridY];
 	field[gridX][gridY][x][y] = player;
-	/*
-	char horiz = 1 << (player-1);
-	horiz &= 1 << (field[gridX][gridY][(x + 1) % 3][y]-1);
-	horiz &= 1 << (field[gridX][gridY][(x + 2) % 3][y]-1);
-	char vert = 1 << (player - 1);
-	vert &= 1 << (field[gridX][gridY][x][(y + 1) % 3] - 1);
-	vert &= 1 << (field[gridX][gridY][x][(y + 2) % 3] - 1);
-
-	char isDiag = !(x - y);
-	char diag = isDiag << (player - 1);
-	diag &= isDiag << (field[gridX][gridY][(x + 1) % 3][(y + 1) % 3] - 1);
-	diag &= isDiag << (field[gridX][gridY][(x + 2) % 3][(y + 2) % 3] - 1);
-
-	char isADiag = !(x - (2 - y));
-	char aDiag = isADiag << (player - 1);
-	aDiag &= isADiag << (field[gridX][gridY][(x + 2) % 3][(y + 1) % 3] - 1);
-	aDiag &= isADiag << (field[gridX][gridY][(x + 1) % 3][(y + 2) % 3] - 1);
-
-	macroBoard[gridX][gridY] = horiz | vert | diag | aDiag;
-	*/
 	
 	if (field[gridX][gridY][adjacentCoord[x]][y] == player && field[gridX][gridY][adjacentCoord2[x]][y] == player)
 	{
@@ -116,30 +212,6 @@ void board_simple::play_move(char player, char fieldX, char fieldY)
 
 	if (macroBoard[gridX][gridY] == player)
 	{
-		//gridScores[gridX][gridY] = (player == 1 ? 1 : -1) * scorePerGrid * scoreMultiplyer[gridX][gridY];
-		gridScores[gridX][gridY] = 0;
-		int opponent = getOpponent(player);
-		if (macroBoard[adjacentCoord[gridX]][gridY] != opponent && macroBoard[adjacentCoord[gridX]][gridY] != 3 &&
-			macroBoard[adjacentCoord2[gridX]][gridY] != opponent && macroBoard[adjacentCoord2[gridX]][gridY] != 3)
-		{
-			gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scorePerGrid;
-		}
-		if (macroBoard[gridX][adjacentCoord[gridY]] != opponent && macroBoard[gridX][adjacentCoord[gridY]] != 3 &&
-			macroBoard[gridX][adjacentCoord2[gridY]] != opponent && macroBoard[gridX][adjacentCoord2[gridY]] != 3)
-		{
-			gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scorePerGrid;
-		}
-		if (gridX == gridY && macroBoard[adjacentCoord[gridX]][adjacentCoord[gridY]] != opponent && macroBoard[adjacentCoord[gridX]][adjacentCoord[gridY]] != 3 &&
-			macroBoard[adjacentCoord2[gridX]][adjacentCoord2[gridY]] != opponent && macroBoard[adjacentCoord2[gridX]][adjacentCoord2[gridY]] != 3)
-		{
-			gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scorePerGrid;
-		}
-		if (gridX == 2 - gridY && macroBoard[adjacentCoord2[gridX]][adjacentCoord[gridY]] != opponent && macroBoard[adjacentCoord2[gridX]][adjacentCoord[gridY]] != 3 &&
-			macroBoard[adjacentCoord[gridX]][adjacentCoord2[gridY]] != opponent && macroBoard[adjacentCoord[gridX]][adjacentCoord2[gridY]] != 3)
-		{
-			gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scorePerGrid;
-		}
-
 		if (macroBoard[adjacentCoord[gridX]][gridY] == player && macroBoard[adjacentCoord2[gridX]][gridY] == player)
 		{
 			winner = player;
@@ -160,23 +232,28 @@ void board_simple::play_move(char player, char fieldX, char fieldY)
 			winner = player;
 			return;
 		}
+		bool horiz = true;
+		char opponent = getOpponent(player);
+		if (macroBoard[adjacentCoord[gridX]][gridY] == opponent)
+		{
+			horiz = false;
+		}
 	}
-	else {
-		gridScores[gridX][gridY] = 0;
+	else if (macroBoard[gridX][gridY] <= 0)
+	{ 
+		//gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scoreMultiplyer[x][y];
+		
+		short int val = 0;
+		int mult = 1;
 		for (int boxY = 0; boxY < 3; ++boxY)
 		{
 			for (int boxX = 0; boxX < 3; ++boxX)
 			{
-				if (field[gridX][gridY][boxX][boxY] == 1)
-				{
-					gridScores[gridX][gridY] += scoreMultiplyer[boxX][boxY];
-				}
-				else if (field[gridX][gridY][boxX][boxY] == 2)
-				{
-					gridScores[gridX][gridY] -= scoreMultiplyer[boxX][boxY];
-				}
+				val += field[gridX][gridY][boxX][boxY] * mult;
+				mult *= 3;
 			}
 		}
+		gridScores[gridX][gridY] = scores[val];
 	}
 
 //	nextMovesX->clear();
@@ -468,7 +545,7 @@ public:
 	int field[3][3][3][3];
 	int macroBoard[3][3];
 
-	board* choices[3][3][3][3];
+	//board* choices[3][3][3][3];
 	board* copy();
 	
 	void play_move(int player, int fieldX, int fieldY);
@@ -498,6 +575,7 @@ private:
 
 board::board()
 {
+	/*
 	for (int gridY = 0; gridY < 3; ++gridY)
 	{
 		for (int gridX = 0; gridX < 3; ++gridX)
@@ -511,10 +589,12 @@ board::board()
 			}
 		}
 	}
+	*/
 }
 
 board::~board()
 {
+	/*
 	for (int gridY = 0; gridY < 3; ++gridY)
 	{
 		for (int gridX = 0; gridX < 3; ++gridX)
@@ -529,12 +609,14 @@ board::~board()
 			}
 		}
 	}
+	*/
 }
 
 board* board::copy()
 {
 	board* b = new board();
 	memcpy(b, this, sizeof(board));
+	/*
 	for (int gridY = 0; gridY < 3; ++gridY)
 	{
 		for (int gridX = 0; gridX < 3; ++gridX)
@@ -548,6 +630,7 @@ board* board::copy()
 			}
 		}
 	}
+	*/
 	return b;
 }
 
@@ -1171,6 +1254,7 @@ int board::getScore(int player)
 	return player == 1 ? score : -score;
 }
 
+/*
 int alphaBetaWithCount(board* b, int player, bool maximizing, int alpha, int beta, int* count)
 {
 	int opponent = getOpponent(player);
@@ -1222,7 +1306,7 @@ int alphaBetaWithCount(board* b, int player, bool maximizing, int alpha, int bet
 							}
 							*/
 
-							int newCount = (*count) / remainingMoves;
+/*							int newCount = (*count) / remainingMoves;
 							remainingMoves--;
 							(*count) -= newCount;
 							int score = alphaBetaWithCount(newBoard, opponent, !maximizing, alpha, beta, &newCount);
@@ -1267,7 +1351,85 @@ int alphaBetaWithCount(board* b, int player, bool maximizing, int alpha, int bet
 
 	return bestScore;
 }
+*/
+int alphaBetaWithDepth(board* b, int player, int depth, bool maximizing, int alpha, int beta)
+{
+	int opponent = getOpponent(player);
+	int scorePlayer = maximizing ? player : opponent;
+	if (b->getWinner() != 0 || depth == 0)
+	{
+		return (b->getScore(scorePlayer));
+	}
+	int bestScore = maximizing ? INT_MIN : INT_MAX;
 
+	for (int gridY = 0; gridY < 3; ++gridY)
+	{
+		for (int gridX = 0; gridX < 3; ++gridX)
+		{
+			if (b->macroBoard[gridX][gridY] == -1)
+			{
+				for (int y = 0; y < 3; ++y)
+				{
+					for (int x = 0; x < 3; ++x)
+					{
+						if (b->field[gridX][gridY][x][y] == 0)
+						{
+							/*
+							board* newBoard = b->choices[gridX][gridY][x][y];
+							if (newBoard == NULL)
+							{
+								newBoard = b->copy();
+								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+								b->choices[gridX][gridY][x][y] = newBoard;
+							}
+							*/
+							board* newBoard = b->copy();
+							newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+							/*
+							int prevScore = newBoard->getScore(scorePlayer);
+							newBoard->evaluateScore();
+							if (newBoard->getWinner() == 0 && prevScore != newBoard->getScore(scorePlayer))
+							{
+							board* copy = b->copy();
+							copy->play_move(player, 3 * gridX + x, 3 * gridY + y);
+							while (1);
+							}
+							*/
+							int score = alphaBetaWithDepth(newBoard, opponent, depth-1, !maximizing, alpha, beta);
+
+							delete newBoard;
+
+							if (maximizing)
+							{
+								if (score > bestScore)
+								{
+									bestScore = score;
+								}
+								if (score > alpha)
+									alpha = score;
+								if (bestScore == INT_MAX)
+									return bestScore;
+							}
+							else {
+								if (score < bestScore)
+									bestScore = score;
+								if (score < beta)
+									beta = score;
+								if (bestScore == INT_MIN)
+									return bestScore;
+							}
+							if (beta <= alpha)
+								return beta;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return bestScore;
+}
+/*
 int MTDF_With_Count(board* b, int f, int player, bool maximizing, int* count)
 {
 	int g = f;
@@ -1284,6 +1446,7 @@ int MTDF_With_Count(board* b, int f, int player, bool maximizing, int* count)
 	}
 	return g;
 }
+*/
 
 short int miniMax_simple(board_simple* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
 {
@@ -1351,13 +1514,179 @@ short int MDTF_simple(board_simple* b, char player, char depth, unsigned int* co
 	return g;
 }
 
+short int alpha_beta_fast(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
+{
+	if (b->winner != 0 || depth == 0)
+	{
+		(*count)++;
+		return b->score * (player == 1 ? 1 : -1);
+	}
+	short int bestScore = SHRT_MIN + 1;
+	if (b->playable == -1)
+	{
+		int macroBoard = b->macroBoard;
+		for (char gridY = 0; gridY < 3; ++gridY)
+		{
+			for (char gridX = 0; gridX < 3; ++gridX)
+			{
+				int board = macroBoard % 4;
+				macroBoard /= 4;
+				if (board == 0)
+				{
+					short int field = b->field[gridX][gridY];
+					for (int y = 0; y < 3; ++y)
+					{
+						for (int x = 0; x < 3; ++x)
+						{
+							if (field % 3 == 0)
+							{
+								board_small* newBoard = new board_small();
+								memcpy(newBoard, b, sizeof(board_small));
+								newBoard->PVNode = NULL;
+								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+								short int score = -alpha_beta_fast(newBoard, getOpponent(player), -beta, -alpha, depth - 1, count);
+								if (-score > bestScore)
+								{
+									bestScore = -score;
+									delete b->PVNode;
+									b->PVNode = newBoard;
+								}
+								else
+								{
+									delete newBoard;
+								}
+
+								if (score > alpha)
+								{
+									alpha = score;
+								}
+								if (beta <= alpha)
+								{
+									return beta;
+								}
+							}
+							field /= 3;
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		char gridX = boxCoord[b->playable];
+		char gridY = gridCoord[b->playable];
+		short int field = b->field[gridX][gridY];
+		for (char y = 0; y < 3; ++y)
+		{
+			for (char x = 0; x < 3; ++x)
+			{
+				if (field % 3 == 0) //If grid space is empty
+				{
+					board_small* newBoard = new board_small();
+					memcpy(newBoard, b, sizeof(board_small));
+					newBoard->PVNode = NULL;
+					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+					short int score = -alpha_beta_fast(newBoard, getOpponent(player), -beta, -alpha, depth - 1, count);
+					if (-score > bestScore)
+					{
+						bestScore = -score;
+						delete b->PVNode;
+						b->PVNode = newBoard;
+					}
+					else
+					{
+						delete newBoard;
+					}
+
+					if (score > alpha)
+					{
+						alpha = score;
+					}
+					if (beta <= alpha)
+					{
+						return beta;
+					}
+				}
+				field /= 3;
+			}
+		}
+	}
+	return bestScore;
+}
+
+short int MDTF_fast(board_small* b, char player, char depth, unsigned int* count, short int f)
+{
+	short int upperBound = SHRT_MAX;
+	short int lowerBound = SHRT_MIN + 1;
+	while (lowerBound < upperBound)
+	{
+		short int beta = f;
+		if (lowerBound + 1 > f)
+			beta = lowerBound + 1;
+		f = alpha_beta_fast(b, player, beta - 1, beta, depth, count);
+		if (f < beta)
+			upperBound = f;
+		else
+			lowerBound = f;
+	}
+	return f;
+}
+
 int main()
 {
-	while (1) //Simple
+	/*
+	ifstream scoreFile("scores.txt");
+	ifstream winnerFile("gridWinners.txt");
+	ifstream bScoreFile("boardScores.txt");
+	
+	if (scoreFile.is_open())
 	{
-		board_simple* b = new board_simple();
-//		b->nextMovesX = new vector<int>();
-//		b->nextMovesY = new vector<int>();
+		string line;
+		int index = 0;
+		while (getline(scoreFile, line))
+		{
+			scores[index++] = stoi(line);
+		}
+		scoreFile.close();
+	}
+	else {
+		cerr << "Score file not found!" << endl;
+		return 0;
+	}
+	
+	if (winnerFile.is_open())
+	{
+		string line;
+		int index = 0;
+		while (getline(winnerFile, line))
+		{
+			gridWinners[index++] = stoi(line);
+		}
+		winnerFile.close();
+	}
+	else {
+		cerr << "Winner file not found!" << endl;
+		return 0;
+	}
+	if (bScoreFile.is_open())
+	{
+		string line;
+		int index = 0;
+		while (getline(bScoreFile, line))
+		{
+			gridScores[index++] = stoi(line);
+		}
+		bScoreFile.close();
+	}
+	else {
+		cerr << "Board score file not found!" << endl;
+		return 0;
+	}
+	*/
+	while (1)
+	{
+		board_small* smallB = new board_small();
+		board* b = new board();
 		for (int gridY = 0; gridY < 3; ++gridY)
 		{
 			for (int gridX = 0; gridX < 3; ++gridX)
@@ -1367,69 +1696,16 @@ int main()
 					for (int x = 0; x < 3; ++x)
 					{
 						b->field[gridX][gridY][x][y] = 0;
-//						b->nextMovesX->push_back(3 * gridX + x);
-//						b->nextMovesY->push_back(3 * gridY + y);
 					}
 				}
 				b->macroBoard[gridX][gridY] = -1;
 			}
 		}
-		
-		char depth = 11;
+		smallB->playable = -1;
+		char depth = 9;
 		unsigned int count = 0;
 		int start = clock();
-		//short int score = MDTF_simple(b, 1, depth, &count, 4);
-		short int score = miniMax_simple(b, 1, SHRT_MIN+1, SHRT_MAX, depth, &count);
-		int stop = clock();
-		float actualTime = ((stop - start) / (CLOCKS_PER_SEC / 1000.0f));
-		float nodesPerMs = count / actualTime;
-		cout << "Depth " << (int)depth << ": Score " << score << " with " << count << " nodes found in " << actualTime << " ms. (" << (int)(nodesPerMs * 1000) << " nodes per second)" << endl;
-		while (1);
-	}
-
-
-	int max_timebank = 0;
-	int time_per_move = 0;
-	char player_names[16];
-	char your_bot[8];
-	int your_botid = 0;
-	
-	scanf("settings timebank %i\n", &max_timebank);
-	scanf("settings time_per_move %i\n", &time_per_move);
-	scanf("settings player_names %s\n", player_names);
-	scanf("settings your_bot %s\n", your_bot);
-	scanf("settings your_botid %i\n", &your_botid);
-	/*
-	max_timebank = 10000;
-	time_per_move = 500;
-	strncpy(player_names, string("player1,player2").c_str(), sizeof(player_names));
-	strncpy(your_bot, string("player1").c_str(), sizeof(your_bot));
-	your_botid = 1;
-	*/
-	board* b = new board();
-	int round = 0;
-	int move = 0;
-	int timebank = 0;
-	int nodesPerMs = -1;
-	float usedRatio = 1.0f;
-	bool couldlose = false;
-
-	int prevScore = 0;
-
-	while (1)
-	{
 		
-		scanf("update game round %i\n", &round);
-		scanf("update game move %i\n", &move);
-		scanf("update game field ");
-		/*
-		round = 19;
-		move = 37;
-		string field = "1,0,2,0,2,0,0,0,2,1,2,0,0,0,0,1,0,0,0,0,0,1,1,0,1,0,0,0,1,0,2,0,1,0,0,0,0,0,2,0,1,0,2,0,1,0,1,2,1,0,0,2,0,1,2,0,0,0,2,0,1,0,2,2,2,2,0,2,0,0,0,1,0,1,0,0,2,1,1,0,2";
-		stringstream ss(field);
-		int index = 0;
-		*/
-
 		for (int gridY = 0; gridY < 3; ++gridY)
 		{
 			for (int y = 0; y < 3; ++y)
@@ -1438,176 +1714,34 @@ int main()
 				{
 					for (int x = 0; x < 3; ++x)
 					{
-						scanf("%i,", &(b->field[gridX][gridY][x][y]));
-						/*
-						ss >> index;
-						b->field[gridX][gridY][x][y] = index;
-						if (ss.peek() == ',')
-							ss.ignore();
-						*/
+						board_small* newB = new board_small();
+						memcpy(newB, smallB, sizeof(board_small));
+						newB->play_move(1, 3*gridX + x, 3*gridY + y);
+						int score = alpha_beta_fast(newB, 2, SHRT_MIN + 1, SHRT_MAX, depth - 1, &count);
+						cout << "[" << score << "]";
 					}
+					cout << " ";
 				}
+				cout << endl;
 			}
+			cout << endl;
 		}
-		scanf("\nupdate game macroboard ");
-		/*
-		string macroBoard = "0,0,-1,0,1,0,2,2,0";
-		stringstream newss(macroBoard);
-		*/
-		for (int gridY = 0; gridY < 3; ++gridY)
+		
+		int score = alpha_beta_fast(smallB, 1, SHRT_MIN + 1, SHRT_MAX, depth, &count);
+		board_small* pv = smallB->PVNode;
+		while (pv != NULL)
 		{
-			for (int gridX = 0; gridX < 3; ++gridX)
-			{
-				scanf("%i,", &(b->macroBoard[gridX][gridY]));
-				/*
-				newss >> index;
-				b->macroBoard[gridX][gridY] = index;
-				if (newss.peek() == ',')
-					newss.ignore();
-				*/
-			}
+			pv->draw_board();
+			cout << pv->score << endl;
+			pv = pv->PVNode;
 		}
-		scanf("\naction move %i", &timebank);
-		//timebank = 10000;
-		if (move == 1)
-		{
-			cout << "place_move 4 4" << endl;
-		} else {
-			/*
-			if (prevBoard != NULL)
-			{
-				for (int gridY = 0; gridY < 3; ++gridY)
-				{
-					for (int gridX = 0; gridX < 3; ++gridX)
-					{
-						if (prevBoard->macroBoard[gridX][gridY] == -1)
-						{
-							for (int y = 0; y < 3; ++y)
-							{
-								for (int x = 0; x < 3; ++x)
-								{
-									if (prevBoard->field[gridX][gridY][x][y] == 0)
-									{
-										if (b->field[gridX][gridY][x][y] != 0)
-										{
-											memcpy(b->choices, prevBoard->choices[gridX][gridY][x][y]->choices, sizeof(board*) * 9 * 9);
-											goto foundOpponentChoice;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-			foundOpponentChoice:
-			*/
-
-			b->evaluateMoveCount();
-			b->evaluateScore();
-
-			if (nodesPerMs <= 0)
-			{
-				int count = 0;
-				int start_time = clock();
-				do {
-					int testCount = 10000;
-					//alphaBetaWithCount(b, your_botid, true, INT_MIN, INT_MAX, &testCount);
-					MTDF_With_Count(b, prevScore, your_botid, true, &testCount);
-					count += (10000 - testCount);
-				} while ((double)(clock() - start_time) / (CLOCKS_PER_SEC / 1000.0) < 200);
-				nodesPerMs = count / 200;
-			}
-
-			int allocatedTime = 500 - min(10000 - timebank,400);
-			if (round > 15)
-			{
-				allocatedTime = timebank / 4;
-			}
-			if (couldlose)
-				allocatedTime = timebank / 2;
-
-			int count = (int)((nodesPerMs * allocatedTime / max(usedRatio,0.1f)));
-			if (count < 0)
-				count = INT_MAX;
-			int start_count = count;
-			cerr << "Round " << round << ": Allocating " << count << " nodes to be searched in " << allocatedTime << " ms." << endl;
-			int start_time = clock();
-
-			int best_score = INT_MIN;
-			int best_index_x = -1;
-			int best_index_y = -1;
-			for (int gridY = 0; gridY < 3; ++gridY)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int gridX = 0; gridX < 3; ++gridX)
-					{
-						for (int x = 0; x < 3; ++x)
-						{
-							if (b->macroBoard[gridX][gridY] == -1 && b->field[gridX][gridY][x][y] == 0)
-							{
-								if (best_index_x == -1)
-								{
-									best_index_x = 3 * gridX + x;
-									best_index_y = 3 * gridY + y;
-								}
-								board* newBoard = b->copy();
-								newBoard->play_move(your_botid, 3 * gridX + x, 3 * gridY + y);
-								int newCount = count / b->getMoveCount();
-								count -= newCount;
-								//int newScore = alphaBetaWithCount(newBoard, getOpponent(your_botid), false, best_score, INT_MAX, &newCount);
-								int newScore = MTDF_With_Count(newBoard, prevScore, getOpponent(your_botid), false, &newCount);
-								count += newCount;
-								delete newBoard;
-								if (newScore > best_score)
-								{
-									best_score = newScore;
-									best_index_x = 3 * gridX + x;
-									best_index_y = 3 * gridY + y;
-									//delete prevBoard;
-									//prevBoard = newBoard;
-								}
-								else {
-									
-								}
-								cerr << newScore << " (" << (clock() - start_time) / (CLOCKS_PER_SEC / 1000) << "ms)";
-
-								if (!couldlose && newScore == INT_MIN)
-								{
-									couldlose = true;
-								}
-								if (newScore == INT_MAX)
-								{
-									cout << endl;
-									goto foundMax;
-								}
-							}
-							else {
-								cerr << "[ " << b->field[gridX][gridY][x][y] << " ]";
-							}
-							cerr << " ";
-						}
-						cerr << " ";
-					}
-					cerr << endl;
-				}
-				cerr << endl;
-			}
-			foundMax:
-			int stop_time = clock();
-			int actualTime = max((int)((stop_time - start_time) / (CLOCKS_PER_SEC / 1000)), 1);
-			int usedCount = start_count - count;
-			usedRatio = (float)usedCount / start_count;
-			nodesPerMs = usedCount / actualTime;
-
-			cout << "place_move " << best_index_x << " " << best_index_y << endl;
-			cerr << "Found score " << best_score << " in " << actualTime << " ms, with " << usedCount << " nodes (" << usedRatio * 100 << " %) = " << (int)((float)usedCount/actualTime*1000) << " nodes per second." << endl;
-
-			prevScore = best_score;
-		}
-		scanf("\n");
+		
+		//short int score = MDTF_fast(smallB, 1, depth, &count, 6);
+		int stop = clock();
+		float actualTime = ((stop - start) / (CLOCKS_PER_SEC / 1000.0f));
+		float nodesPerMs = count / actualTime;
+		//cout << "Depth " << (int)depth << ": Score " << score << " with " << count << " nodes found in " << actualTime << " ms. (" << (int)(nodesPerMs * 1000) << " nodes per second)" << endl;
+		while (1);
 	}
-
 	while (1);
 }
