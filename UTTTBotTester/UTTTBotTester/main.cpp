@@ -18,7 +18,7 @@ HANDLE g_hChildStd_OUT_Wr = NULL;
 
 void CreateChildProcess(string dir);
 void WriteToPipe(string str);
-string ReadFromPipe(void);
+string ReadFromPipe(int size);
 void ErrorExit(PTSTR);
 
 int _tmain(int argc, TCHAR *argv[])
@@ -83,12 +83,25 @@ int _tmain(int argc, TCHAR *argv[])
 	// Data is written to the pipe's buffers, so it is not necessary to wait
 	// until the child process is running before writing data.
 	int i = 0;
+	/*
+	WriteToPipe("settings timebank 10000\n");
+	WriteToPipe("settings time_per_move 500\n");
+	WriteToPipe("settings player_names player1,player2\n");
+	WriteToPipe("settings your_bot player1\n");
+	WriteToPipe("settings your_botid 1\n");
+
+	WriteToPipe("update game round 1\n");
+	WriteToPipe("update game move 1\n");
+	WriteToPipe("update game field 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n");
+	WriteToPipe("update game macroboard -1,-1,-1,-1,-1,-1,-1,-1,-1\n");
+	*/
+	WriteToPipe("action move 10000\n");
 	while (1)
 	{
-		string str = to_string(i++) + "cba\n";
-		WriteToPipe(str);
+		//string str = "cba\n";
+		//WriteToPipe(str);
 		//CreatePipe(&g_hChildStd_IN_Rd, &g_hChildStd_IN_Wr, &saAttr, 0);
-		string result = ReadFromPipe();
+		string result = ReadFromPipe(1);
 		printf("Program returned: %s\n", result.c_str());
 	}
 	
@@ -178,7 +191,7 @@ void WriteToPipe(string str)
 //		ErrorExit(TEXT("StdInWr CloseHandle"));
 }
 
-string ReadFromPipe(void)
+string ReadFromPipe(int size)
 
 // Read output from the child process's pipe for STDOUT
 // and write to the parent process's pipe for STDOUT. 
@@ -189,8 +202,20 @@ string ReadFromPipe(void)
 	BOOL bSuccess = FALSE;
 	HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	ReadFile(g_hChildStd_OUT_Rd, chBuf, BUFSIZE, &dwRead, NULL);
-	chBuf[dwRead] = 0;
+	//ReadFile(g_hChildStd_OUT_Rd, chBuf, size, &dwRead, NULL);
+	int index = 0;
+	for (;;)
+	{
+		char buf[1];
+		bSuccess = ReadFile(g_hChildStd_OUT_Rd, buf, 1, &dwRead, NULL);
+		chBuf[index++] = *buf;
+		if (!bSuccess || dwRead == 0 || (*buf) == '\n' || (*buf) == '\r')
+		{
+			ReadFile(g_hChildStd_OUT_Rd, buf, 1, &dwRead, NULL);
+			break;
+		}
+	}
+	chBuf[index] = 0;
 	string str(chBuf);
 	return str;
 }

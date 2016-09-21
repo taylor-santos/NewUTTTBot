@@ -1,17 +1,11 @@
 #include <iostream>
 #include <algorithm>
 #include <ctime>
-#include <cstdlib>
-#include <string.h>
-#include <cstring>
-#include <assert.h>
-#include <sstream>
 #include <vector>
-#include <fstream>
 #include "scores.h"
 
-#define INT_MAX 2147483647
-#define INT_MIN -2147483647
+#define SHRT_MAX 32767 
+#define SHRT_MIN -32768
 
 using namespace std;
 
@@ -43,1485 +37,132 @@ struct board_small
 	int macroBoard = 0;
 	short int field[3][3] = { { 0,0,0 },{ 0,0,0 },{ 0,0,0 } };
 	board_small* PVNode = NULL;
-	//long long int field = 0;
+	signed char PVCoord = -1;
 
-	void draw_board()
+	void draw_board();
+	void play_move(char player, char fieldX, char fieldY);
+
+	~board_small();
+};
+
+void board_small::draw_board()
+{
+	short int val[3][3];
+	memcpy(val, field, sizeof(short int) * 3 * 3);
+	for (int gridY = 0; gridY < 3; ++gridY)
 	{
-		short int val[3][3];
-		memcpy(val, field, sizeof(short int) * 3 * 3);
-		for (int gridY = 0; gridY < 3; ++gridY)
-		{
-			for (int y = 0; y < 3; ++y)
-			{
-				for (int gridX = 0; gridX < 3; ++gridX)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						cout << val[gridX][gridY] % 3;
-						val[gridX][gridY] /= 3;
-					}
-					cout << " ";
-				}
-				cout << endl;
-			}
-			cout << endl;
-		}
-
-		int mboard = macroBoard;
-		for (int gridY = 0; gridY < 3; ++gridY)
+		for (int y = 0; y < 3; ++y)
 		{
 			for (int gridX = 0; gridX < 3; ++gridX)
 			{
-				int b = mboard % 4;
-				if (b == 0 && (3 * gridY + gridX == playable || playable == -1))
+				for (int x = 0; x < 3; ++x)
 				{
-					cout << "-1 ";
+					int box = val[gridX][gridY] % 3;
+					if (box != 0)
+						cerr << box;
+					else
+						cerr << "_";
+					val[gridX][gridY] /= 3;
 				}
-				else {
-					cout << " " << b << " ";
-				}
-				mboard /= 4;
+				cerr << " ";
 			}
-			cout << endl;
+			cerr << endl;
 		}
-		cout << endl;
+		cerr << endl;
 	}
 
-	void play_move(char player, char fieldX, char fieldY)
+	int mboard = macroBoard;
+	for (int gridY = 0; gridY < 3; ++gridY)
 	{
-		char x = boxCoord[fieldX];
-		char y = boxCoord[fieldY];
-		char gridX = gridCoord[fieldX];
-		char gridY = gridCoord[fieldY];
-
-		score -= scores[field[gridX][gridY]];
-
-		field[gridX][gridY] += pow3[3 * y + x] * player;
-		char gridWinner = gridWinners[field[gridX][gridY]];
-		if (gridWinner != 0)
+		for (int gridX = 0; gridX < 3; ++gridX)
 		{
-			score -= gridScores[macroBoard];
-			macroBoard += pow4[3 * gridY + gridX] * gridWinner;
-			int gridScore = gridScores[macroBoard];
-			if (gridScore == SHRT_MAX)
+			int b = mboard % 4;
+			if (b == 0 && (3 * gridY + gridX == playable || playable == -1))
 			{
-				winner = 1;
-				score = SHRT_MAX;
-				return;
+				cerr << "-1 ";
 			}
-			else if (gridScore == SHRT_MIN+1)
-			{
-				winner = 2;
-				score = SHRT_MIN + 1;
-				return;
+			else {
+				cerr << " " << b << " ";
 			}
-			else
-				score += gridScores[macroBoard];
+			mboard /= 4;
 		}
-		else
-			score += scores[field[gridX][gridY]];
-		playable = 3 * y + x;
-		if ((macroBoard / pow4[playable]) % 4 != 0)
-		{
-			playable = -1;
-		}
+		cerr << endl;
 	}
-
-	board_small()
-	{
-
-	}
-	/*
-	board_small(board_small* copy)
-	{
-		winner = 0;
-		score = copy->score;
-		macroBoard = copy->macroBoard;
-		std::copy(&copy->field[0][0], &copy->field[0][0] + 3 * 3, &field[0][0]);
-	}
-	*/
-	~board_small()
-	{
-		delete PVNode;
-	}
-};
-
-class board_simple
-{
-public:
-	char winner = 0;
-	short int score = 0;
-	signed char macroBoard[3][3];
-	short int gridScores[3][3] = { { 0,0,0 },{ 0,0,0 },{ 0,0,0 } };
-	char field[3][3][3][3];
-	
-
-	void play_move(char player, char fieldX, char fieldY);
-	short int get_score(char player);
-
-	board_simple* copy();
-
-	board_simple();
-	~board_simple();
-};
-
-board_simple::board_simple()
-{
-
+	cerr << endl;
 }
 
-board_simple::~board_simple()
-{
-
-}
-
-board_simple* board_simple::copy()
-{
-	board_simple* newBoard = new board_simple();
-	memcpy(newBoard, this, sizeof(board_simple));
-	return newBoard;
-}
-
-void board_simple::play_move(char player, char fieldX, char fieldY)
+void board_small::play_move(char player, char fieldX, char fieldY)
 {
 	char x = boxCoord[fieldX];
 	char y = boxCoord[fieldY];
 	char gridX = gridCoord[fieldX];
 	char gridY = gridCoord[fieldY];
 
-	score -= gridScores[gridX][gridY];
-	field[gridX][gridY][x][y] = player;
-	
-	if (field[gridX][gridY][adjacentCoord[x]][y] == player && field[gridX][gridY][adjacentCoord2[x]][y] == player)
-	{
-		macroBoard[gridX][gridY] = player;
-	}
-	else if (field[gridX][gridY][x][adjacentCoord[y]] == player && field[gridX][gridY][x][adjacentCoord2[y]] == player)
-	{
-		macroBoard[gridX][gridY] = player;
-	}
-	else if (x == y && field[gridX][gridY][adjacentCoord[x]][adjacentCoord[y]] == player && field[gridX][gridY][adjacentCoord2[x]][adjacentCoord2[y]] == player)
-	{
-		macroBoard[gridX][gridY] = player;
-	}
-	else if (x == 2 - y && field[gridX][gridY][adjacentCoord2[x]][adjacentCoord[y]] == player && field[gridX][gridY][adjacentCoord[x]][adjacentCoord2[y]] == player)
-	{
-		macroBoard[gridX][gridY] = player;
-	}
-	
+	score -= scores[field[gridX][gridY]];
 
-	if (macroBoard[gridX][gridY] == player)
+	field[gridX][gridY] += pow3[3 * y + x] * player;
+	char gridWinner = gridWinners[field[gridX][gridY]];
+	if (gridWinner != 0)
 	{
-		if (macroBoard[adjacentCoord[gridX]][gridY] == player && macroBoard[adjacentCoord2[gridX]][gridY] == player)
+		score -= gridScores[macroBoard];
+		macroBoard += pow4[3 * gridY + gridX] * gridWinner;
+		int gridScore = gridScores[macroBoard];
+		if (gridScore == SHRT_MAX)
 		{
-			winner = player;
+			winner = 1;
+			score = SHRT_MAX;
 			return;
 		}
-		if (macroBoard[gridX][adjacentCoord[gridY]] == player && macroBoard[gridX][adjacentCoord2[gridY]] == player)
+		else if (gridScore == SHRT_MIN + 1)
 		{
-			winner = player;
+			winner = 2;
+			score = SHRT_MIN + 1;
 			return;
 		}
-		if (gridX == gridY && macroBoard[adjacentCoord[gridX]][adjacentCoord[gridY]] == player && macroBoard[adjacentCoord2[gridX]][adjacentCoord2[gridY]] == player)
+		else if (gridScore == 0)
 		{
-			winner = player;
-			return;
-		}
-		if (fieldX == 2 - fieldY && macroBoard[adjacentCoord2[gridX]][adjacentCoord[gridY]] == player && macroBoard[adjacentCoord[gridX]][adjacentCoord2[gridY]] == player)
-		{
-			winner = player;
-			return;
-		}
-		bool horiz = true;
-		char opponent = getOpponent(player);
-		if (macroBoard[adjacentCoord[gridX]][gridY] == opponent)
-		{
-			horiz = false;
-		}
-	}
-	else if (macroBoard[gridX][gridY] <= 0)
-	{ 
-		//gridScores[gridX][gridY] += (player == 1 ? 1 : -1) * scoreMultiplyer[x][y];
-		
-		short int val = 0;
-		int mult = 1;
-		for (int boxY = 0; boxY < 3; ++boxY)
-		{
-			for (int boxX = 0; boxX < 3; ++boxX)
+			winner = 3;
+			int mBoard = macroBoard;
+			for (int i = 0; i < 9; ++i)
 			{
-				val += field[gridX][gridY][boxX][boxY] * mult;
-				mult *= 3;
-			}
-		}
-		gridScores[gridX][gridY] = scores[val];
-	}
-
-//	nextMovesX->clear();
-//	nextMovesY->clear();
-
-	bool openBoard = false;
-	if (macroBoard[x][y] > 0)
-	{
-		openBoard = true;
-	}
-	for (int Y = 0; Y < 3; ++Y)
-	{
-		for (int X = 0; X < 3; ++X)
-		{
-			if (macroBoard[X][Y] <= 0)
-			{
-				if (openBoard || (X == x&&Y == y))
-				{
-					macroBoard[X][Y] = -1;
-/*					for (int boxY = 0; boxY < 3; ++boxY)
-					{
-						for (int boxX = 0; boxX < 3; ++boxX)
-						{
-							if (field[X][Y][boxX][boxY] == 0)
-							{
-								nextMovesX->push_back(3 * X + boxX);
-								nextMovesY->push_back(3 * Y + boxY);
-							}
-						}
-					}
-*/				}
-				else
-					macroBoard[X][Y] = 0;
-			}
-		}
-	}
-
-	score += gridScores[gridX][gridY];
-
-	/*
-	if (macroBoard[gridX][gridY] <= 0)
-	{
-		//gridScores[gridX][gridY] = -(player * 2 - 3) * scoreMultiplyer[x][y];
-		
-		gridScores[gridX][gridY] = 0;		
-		for (int i = 0; i < 3; ++i)
-		{
-			int horiz1Count = 0;
-			int horiz2Count = 0;
-			int vert1Count = 0;
-			int vert2Count = 0;
-			for (int j = 0; j < 3; ++j)
-			{
-				if (field[gridX][gridY][i][j] == 1)
-					horiz1Count++;
-				else if (field[gridX][gridY][i][j] == 2)
-					horiz2Count++;
-
-				if (field[gridX][gridY][j][i] == 1)
-					vert1Count++;
-				else if (field[gridX][gridY][j][i] == 2)
-					vert1Count++;
-			}
-			if (horiz1Count == 0)
-			{
-				gridScores[gridX][gridY] -= horiz2Count*horiz2Count;
-			}
-			else if (horiz2Count == 0)
-			{
-				gridScores[gridX][gridY] += horiz1Count*horiz1Count;
-			}
-			if (vert1Count == 0)
-			{
-				gridScores[gridX][gridY] -= vert2Count*vert2Count;
-			}
-			else if (vert2Count == 0)
-			{
-				gridScores[gridX][gridY] += vert1Count*vert1Count;
-			}
-		}
-		int diag1Count = 0;
-		int diag2Count = 0;
-		int aDiag1Count = 0;
-		int aDiag2Count = 0;
-		if (field[gridX][gridY][0][0] == 1)
-			diag1Count++;
-		else if (field[gridX][gridY][0][0] == 2)
-			diag2Count++;
-		if (field[gridX][gridY][2][2] == 1)
-			diag1Count++;
-		else if (field[gridX][gridY][2][2] == 2)
-			diag2Count++;
-
-		if (field[gridX][gridY][2][0] == 1)
-			aDiag1Count++;
-		else if (field[gridX][gridY][2][0] == 2)
-			aDiag2Count++;
-		if (field[gridX][gridY][0][2] == 1)
-			aDiag1Count++;
-		else if (field[gridX][gridY][0][2] == 2)
-			aDiag2Count++;
-
-		if (field[gridX][gridY][1][1] == 1)
-		{
-			diag1Count++;
-			aDiag1Count++;
-		}
-		else if (field[gridX][gridY][1][1] == 2)
-		{
-			diag2Count++;
-			aDiag2Count++;
-		}
-
-		if (diag1Count == 0)
-		{
-			gridScores[gridX][gridY] -= diag2Count*diag2Count;
-		}
-		else if (diag2Count == 0)
-		{
-			gridScores[gridX][gridY] += diag1Count*diag2Count;
-		}
-		if (aDiag1Count == 0)
-		{
-			gridScores[gridX][gridY] -= aDiag2Count*aDiag2Count;
-		}
-		else if (aDiag2Count == 0)
-		{
-			gridScores[gridX][gridY] += aDiag1Count*aDiag1Count;
-		}
-
-		macroBoard[gridX][gridY] = 3;
-		for (int boxY = 0; boxY < 3; ++boxY)
-		{
-			for (int boxX = 0; boxX < 3; ++boxX)
-			{
-				if (field[gridX][gridY][boxX][boxY] == 0)
-				{
-					macroBoard[gridX][gridY] = 0;
-					goto noTie;
-				}
-			}
-		}
-	}
-	else if (macroBoard[gridX][gridY] == player)
-	{
-		if (macroBoard[(gridX + 1) % 3][gridY] == player && macroBoard[(gridX + 2) % 3][gridY] == player)
-		{
-			winner = player;
-			return;
-		}
-		if (macroBoard[gridX][(gridY + 1) % 3] == player && macroBoard[gridX][(gridY + 2) % 3] == player)
-		{
-			winner = player;
-			return;
-		}
-		if (gridX == gridY && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] == player && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] == player)
-		{
-			winner = player;
-			return;
-		}
-		if (fieldX == 2 - fieldY && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] == player && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] == player)
-		{
-			winner = player;
-			return;
-		}
-
-		//gridScores[gridX][gridY] = (player == 1 ? 1 : -1) * scorePerGrid * scoreMultiplyer[gridX][gridY];
-
-		
-		int thisGridScore = 0;
-		int opponent = getOpponent(player);
-		if (macroBoard[(gridX + 1) % 3][gridY] != opponent && macroBoard[(gridX + 2) % 3][gridY] != opponent &&
-			macroBoard[(gridX + 1) % 3][gridY] != 3 && macroBoard[(gridX + 2) % 3][gridY] != 3)
-		{
-			int ownedCount = 1;
-			if (macroBoard[(gridX + 1) % 3][gridY] == player)
-				ownedCount++;
-			if (macroBoard[(gridX + 2) % 3][gridY] == player)
-				ownedCount++;
-			if (ownedCount == 3)
-			{
-				winner = player;
-				return;
-			}
-			thisGridScore += pow(scorePerGrid, ownedCount);
-		}
-		if (macroBoard[gridX][(gridY + 1) % 3] != opponent && macroBoard[gridX][(gridY + 2) % 3] != opponent &&
-			macroBoard[gridX][(gridY + 1) % 3] != 3 && macroBoard[gridX][(gridY + 2) % 3] != 3)
-		{
-			int ownedCount = 1;
-			if (macroBoard[gridX][(gridY + 1) % 3] == player)
-				ownedCount++;
-			if (macroBoard[gridX][(gridY + 2) % 3] == player)
-				ownedCount++;
-			if (ownedCount == 3)
-			{
-				winner = player;
-				return;
-			}
-			thisGridScore += pow(scorePerGrid, ownedCount);
-		}
-		if (fieldX == fieldY)
-		{
-			if (macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != opponent && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != opponent &&
-				macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 3)
-			{
-				int ownedCount = 1;
-				if (macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] == player)
-					ownedCount++;
-				if (macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] == player)
-					ownedCount++;
-				if (ownedCount == 3)
-				{
-					winner = player;
-					return;
-				}
-				thisGridScore += pow(scorePerGrid, ownedCount);
-			}
-		}
-		if (fieldX == 2 - fieldY)
-		{
-			if (macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != opponent && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != opponent &&
-				macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 3)
-			{
-				int ownedCount = 1;
-				if (macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] == player)
-					ownedCount++;
-				if (macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] == player)
-					ownedCount++;
-				if (ownedCount == 3)
-				{
-					winner = player;
-					return;
-				}
-				thisGridScore += pow(scorePerGrid, ownedCount);
-			}
-		}
-		gridScores[gridX][gridY] = player == 1 ? thisGridScore : -thisGridScore;
-
-	}
-noTie:
-	bool openBoard = false;
-	if (macroBoard[x][y] > 0)
-	{
-		openBoard = true;
-	}
-	for (int Y = 0; Y < 3; ++Y)
-	{
-		for (int X = 0; X < 3; ++X)
-		{
-			if (macroBoard[X][Y] <= 0)
-			{
-				if (openBoard || (X == x&&Y == y))
-					macroBoard[X][Y] = -1;
-				else
-					macroBoard[X][Y] = 0;
-			}
-		}
-	}
-	*/
-}
-
-short int board_simple::get_score(char player)
-{
-	if (winner == 0)
-	{
-		/*
-		short int score = 0;
-		for (int gridY = 0; gridY < 3; ++gridY)
-		{
-			for (int gridX = 0; gridX < 3; ++gridX)
-			{
-				score += gridScores[gridX][gridY];
-			}
-		}
-		*/
-		return (player == 1 ? score : -score);
-	}
-	else if (winner == 1)
-		return player == 1 ? SHRT_MAX : SHRT_MIN;
-	else if (winner == 2)
-		return player == 2 ? SHRT_MAX : SHRT_MIN;
-	else
-		return 0;
-}
-
-class board {
-public:
-	int field[3][3][3][3];
-	int macroBoard[3][3];
-
-	//board* choices[3][3][3][3];
-	board* copy();
-	
-	void play_move(int player, int fieldX, int fieldY);
-	void evaluateScore();
-	
-	int getWinner() { return winner; }
-	int evaluateMoveCount();
-	int getMoveCount() { return moveCount; }
-	int getScore(int player);
-
-	board();
-	~board();
-
-private:
-	int winner = 0;
-	int moveCount = 0;
-	int score = 0;
-	int P1gridScores[3][3];
-	int P2gridScores[3][3];
-	int P1Multiplyer[3][3] = { { 3,2,3 }, { 2,4,2 }, { 3,2,3 } };
-	int P2Multiplyer[3][3] = { { 3,2,3 }, { 2,4,2 }, { 3,2,3 } };
-
-	void evaluateMacroboard(int gridX, int gridY, int x, int y);
-	void evaluateWinner(int gridX, int gridY);
-	void evaluateMultiplyers();
-};
-
-board::board()
-{
-	/*
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			for (int y = 0; y < 3; ++y)
-			{
-				for (int x = 0; x < 3; ++x)
-				{
-					choices[gridX][gridY][x][y] = NULL;
-				}
-			}
-		}
-	}
-	*/
-}
-
-board::~board()
-{
-	/*
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			for (int y = 0; y < 3; ++y)
-			{
-				for (int x = 0; x < 3; ++x)
-				{
-					if (choices[gridX][gridY][x][y] != NULL)
-					 delete choices[gridX][gridY][x][y];
-				}
-			}
-		}
-	}
-	*/
-}
-
-board* board::copy()
-{
-	board* b = new board();
-	memcpy(b, this, sizeof(board));
-	/*
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			for (int y = 0; y < 3; ++y)
-			{
-				for (int x = 0; x < 3; ++x)
-				{
-					b->choices[gridX][gridY][x][y] = NULL;
-				}
-			}
-		}
-	}
-	*/
-	return b;
-}
-
-void board::play_move(int player, int fieldX, int fieldY)
-{
-	/*Updates the board according to a move by the input player at the input coordinates*/
-	int opponent = getOpponent(player);
-	int x = fieldX % 3;
-	int y = fieldY % 3;
-	int gridX = fieldX / 3;
-	int gridY = fieldY / 3;
-	assert(macroBoard[gridX][gridY] == -1); //Grid must be playable
-	assert(field[gridX][gridY][x][y] == 0); //board must be open at spot
-	field[gridX][gridY][x][y] = player; //Place the actual move onto the board
-	evaluateMacroboard(gridX, gridY, x, y); //Check if grid has been won
-
-//	score -= P1gridScores[gridX][gridY] * P1Multiplyer[gridX][gridY];
-//	score += P2gridScores[gridX][gridY] * P2Multiplyer[gridX][gridY];
-
-	if (macroBoard[gridX][gridY] > 0) //If the move either won or tied the grid...
-	{
-		evaluateWinner(gridX, gridY); //Check if the board now has a winner.
-
-		if (winner != 0)
-			return;
-
-	
-
-		//Set the individual scores based on whether or not each player is the winner of the grid
-		P1gridScores[gridX][gridY] = macroBoard[gridX][gridY] == 1 ? scorePerGrid : 0;
-		P2gridScores[gridX][gridY] = macroBoard[gridX][gridY] == 2 ? scorePerGrid : 0;
-
-		int gridWinner = macroBoard[gridX][gridY]; //Could be 3 (TIE)
-
-		//	Each multiplyer is set up to count the number of possible wins that could result from each grid.
-		//	If the opponent wins a grid, certain multiplyers for the player need to be subtracted, and vice-versa
-		if (gridWinner != 1)
-		{
-			P1Multiplyer[gridX][gridY] = 0;
-			if (macroBoard[(gridX + 1) % 3][gridY] != 2 && macroBoard[(gridX + 1) % 3][gridY] != 3 &&
-				macroBoard[(gridX + 2) % 3][gridY] != 2 && macroBoard[(gridX + 2) % 3][gridY] != 3)
-			{
-				P1Multiplyer[(gridX + 1) % 3][gridY]--;
-				P1Multiplyer[(gridX + 2) % 3][gridY]--;
-//				score -= P1gridScores[(gridX + 1) % 3][gridY];
-//				score -= P1gridScores[(gridX + 2) % 3][gridY];
-			}
-			if (macroBoard[gridX][(gridY + 1) % 3] != 2 && macroBoard[gridX][(gridY + 1) % 3] != 3 &&
-				macroBoard[gridX][(gridY + 2) % 3] != 2 && macroBoard[gridX][(gridY + 2) % 3] != 3)
-			{
-				P1Multiplyer[gridX][(gridY + 1) % 3]--;
-				P1Multiplyer[gridX][(gridY + 2) % 3]--;
-//				score -= P1gridScores[gridX][(gridY + 1) % 3];
-//				score -= P1gridScores[gridX][(gridY + 2) % 3];
-			}
-			if (gridX == gridY &&
-				macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 2 && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 3 &&
-				macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 2 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 3)
-			{
-				P1Multiplyer[(gridX + 1) % 3][(gridY + 1) % 3]--;
-				P1Multiplyer[(gridX + 2) % 3][(gridY + 2) % 3]--;
-//				score -= P1gridScores[(gridX + 1) % 3][(gridY + 1) % 3];
-//				score -= P1gridScores[(gridX + 2) % 3][(gridY + 2) % 3];
-			}
-			if (gridX == 2 - gridY &&
-				macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 2 && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 3 &&
-				macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 2 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 3)
-			{
-				P1Multiplyer[(gridX + 2) % 3][(gridY + 1) % 3]--;
-				P1Multiplyer[(gridX + 1) % 3][(gridY + 2) % 3]--;
-//				score -= P1gridScores[(gridX + 2) % 3][(gridY + 1) % 3];
-//				score -= P1gridScores[(gridX + 1) % 3][(gridY + 2) % 3];
-			}
-		}
-
-		if (gridWinner != 2)
-		{
-			P2Multiplyer[gridX][gridY] = 0;
-			if (macroBoard[(gridX + 1) % 3][gridY] != 1 && macroBoard[(gridX + 1) % 3][gridY] != 3 &&
-				macroBoard[(gridX + 2) % 3][gridY] != 1 && macroBoard[(gridX + 2) % 3][gridY] != 3)
-			{
-				P2Multiplyer[(gridX + 1) % 3][gridY]--;
-				P2Multiplyer[(gridX + 2) % 3][gridY]--;
-//				score += P2gridScores[(gridX + 1) % 3][gridY];
-//				score += P2gridScores[(gridX + 2) % 3][gridY];
-			}
-			if (macroBoard[gridX][(gridY + 1) % 3] != 1 && macroBoard[gridX][(gridY + 1) % 3] != 3 &&
-				macroBoard[gridX][(gridY + 2) % 3] != 1 && macroBoard[gridX][(gridY + 2) % 3] != 3)
-			{
-				P2Multiplyer[gridX][(gridY + 1) % 3]--;
-				P2Multiplyer[gridX][(gridY + 2) % 3]--;
-//				score += P2gridScores[gridX][(gridY + 1) % 3];
-//				score += P2gridScores[gridX][(gridY + 2) % 3];
-			}
-			if (gridX == gridY &&
-				macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 1 && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 3 &&
-				macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 1 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 3)
-			{
-				P2Multiplyer[(gridX + 1) % 3][(gridY + 1) % 3]--;
-				P2Multiplyer[(gridX + 2) % 3][(gridY + 2) % 3]--;
-//				score += P2gridScores[(gridX + 1) % 3][(gridY + 1) % 3];
-//				score += P2gridScores[(gridX + 2) % 3][(gridY + 2) % 3];
-			}
-			if (gridX == 2 - gridY &&
-				macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 1 && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 3 &&
-				macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 1 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 3)
-			{
-				P2Multiplyer[(gridX + 2) % 3][(gridY + 1) % 3]--;
-				P2Multiplyer[(gridX + 1) % 3][(gridY + 2) % 3]--;
-//				score += P2gridScores[(gridX + 2) % 3][(gridY + 1) % 3];
-//				score += P2gridScores[(gridX + 1) % 3][(gridY + 2) % 3];
-			}
-		}
-
-	}
-	else {
-		P1gridScores[gridX][gridY] = 0;
-		P2gridScores[gridX][gridY] = 0;
-		int DiagP1Count[2] = { 0,0 };
-		int DiagP2Count[2] = { 0,0 };
-		for (int i = 0; i < 3; ++i)
-		{
-			int HorizP1Count = 0;
-			int HorizP2Count = 0;
-			int VertP1Count = 0;
-			int VertP2Count = 0;
-
-			for (int j = 0; j < 3; ++j)
-			{
-				if (field[gridX][gridY][j][i] == 1)
-					HorizP1Count++;
-				else if (field[gridX][gridY][j][i] == 2)
-					HorizP2Count++;
-
-				if (field[gridX][gridY][i][j] == 1)
-					VertP1Count++;
-				else if (field[gridX][gridY][i][j] == 2)
-					VertP2Count++;
-			}
-
-			if (field[gridX][gridY][i][i] == 1)
-				DiagP1Count[0]++;
-			else if (field[gridX][gridY][i][i] == 2)
-				DiagP2Count[0]++;
-
-			if (field[gridX][gridY][i][2 - i] == 1)
-				DiagP1Count[1]++;
-			else if (field[gridX][gridY][i][2 - i] == 2)
-				DiagP2Count[1]++;
-
-			if (HorizP2Count == 0)
-				P1gridScores[gridX][gridY] += HorizP1Count*HorizP1Count;
-			else if (HorizP1Count == 0)
-				P2gridScores[gridX][gridY] += HorizP2Count*HorizP2Count;
-
-			if (VertP2Count == 0)
-				P1gridScores[gridX][gridY] += VertP1Count*VertP1Count;
-			else if (VertP1Count == 0)
-				P2gridScores[gridX][gridY] += VertP2Count*VertP2Count;
-		}
-		if (DiagP2Count[0] == 0)
-			P1gridScores[gridX][gridY] += DiagP1Count[0] * DiagP1Count[0];
-		else if (DiagP1Count[0] == 0)
-			P2gridScores[gridX][gridY] += DiagP2Count[0] * DiagP2Count[0];
-
-		if (DiagP2Count[1] == 0)
-			P1gridScores[gridX][gridY] += DiagP1Count[1] * DiagP1Count[1];
-		else if (DiagP1Count[1] == 0)
-			P2gridScores[gridX][gridY] += DiagP2Count[1] * DiagP2Count[1];
-	}
-
-//	score += P1gridScores[gridX][gridY] * P1Multiplyer[gridX][gridY];
-//	score -= P2gridScores[gridX][gridY] * P2Multiplyer[gridX][gridY];
-
-	bool openBoard = false;
-	if (macroBoard[x][y] > 0)
-		openBoard = true;
-	moveCount = 0;
-	for (int newGridY = 0; newGridY < 3; ++newGridY)
-	{
-		for (int newGridX = 0; newGridX < 3; ++newGridX)
-		{
-			if (macroBoard[newGridX][newGridY] <= 0)
-			{
-				macroBoard[newGridX][newGridY] = openBoard ? -1 : 0;
-				if (newGridX == x && newGridY == y)
-					macroBoard[newGridX][newGridY] = -1;
-			}
-			if (macroBoard[newGridX][newGridY] == -1)
-			{
-				for (int newY = 0; newY < 3; ++newY)
-				{
-					for (int newX = 0; newX < 3; ++newX)
-					{
-						if (field[newGridX][newGridY][newX][newY] == 0)
-						{
-							moveCount++;
-						}
-					}
-				}
-			}
-		}
-	}
-	return;
-}
-
-void board::evaluateMacroboard(int gridX, int gridY, int x, int y)
-{
-	//Search adjacent spaces to see if grid has been won
-	int player = field[gridX][gridY][x][y];
-	if (player == 0)
-		return;
-	if (field[gridX][gridY][(x + 1) % 3][y] == player &&
-	    field[gridX][gridY][(x + 2) % 3][y] == player)
-		macroBoard[gridX][gridY] = player;
-	else if (field[gridX][gridY][x][(y + 1) % 3] == player &&
-	         field[gridX][gridY][x][(y + 2) % 3] == player)
-		macroBoard[gridX][gridY] = player;
-	else if (x == y &&
-	         field[gridX][gridY][(x + 1) % 3][(y + 1) % 3] == player &&
-	         field[gridX][gridY][(x + 2) % 3][(y + 2) % 3] == player)
-		macroBoard[gridX][gridY] = player;
-	else if (x == 2 - y &&
-	         field[gridX][gridY][(x + 2) % 3][(y + 1) % 3] == player &&
-	         field[gridX][gridY][(x + 1) % 3][(y + 2) % 3] == player)
-		macroBoard[gridX][gridY] = player;
-	else
-	{
-		macroBoard[gridX][gridY] = 3; //Assume grid is tied until an open space is found
-		for (int fieldY = 0; fieldY < 3; ++fieldY)
-		{
-			for (int fieldX = 0; fieldX < 3; ++fieldX)
-			{
-				if (field[gridX][gridY][fieldX][fieldY] == 0)
-				{
-					macroBoard[gridX][gridY] = 0;
-					return;
-				}
-			}
-		}
-	}
-	return;
-}
-
-void board::evaluateWinner(int gridX, int gridY)
-{
-	int player = macroBoard[gridX][gridY];
-	if (winner != 0 || (player != 1 && player != 2))
-	{
-		return;
-	}
-	if (macroBoard[(gridX + 1) % 3][gridY] == player &&
-	    macroBoard[(gridX + 2) % 3][gridY] == player)
-		winner = player;
-	else if (macroBoard[gridX][(gridY + 1) % 3] == player &&
-		     macroBoard[gridX][(gridY + 2) % 3] == player)
-		winner = player;
-	else if (gridX == gridY &&
-	         macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] == player &&
-	         macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] == player)
-		winner = player;
-	else if (gridX == 2 - gridY &&
-	         macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] == player &&
-	         macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] == player)
-		winner = player;
-	else
-	{
-		winner = 3; //Assume game is tied until an open grid is found
-		for (gridY = 0; gridY < 3; ++gridY)
-		{
-			for (gridX = 0; gridX < 3; ++gridX)
-			{
-				if (macroBoard[gridX][gridY] <= 0)
+				if (mBoard % 4 == 0)
 				{
 					winner = 0;
-					return;
+					break;
 				}
+				mBoard /= 4;
 			}
-		}
-	}
-	return;
-}
-
-void board::evaluateScore()
-{
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			P1gridScores[gridX][gridY] = 0;
-			P2gridScores[gridX][gridY] = 0;
-			if (macroBoard[gridX][gridY] <= 0)
+			if (mBoard == 3)
 			{
-				int DiagP1Count[2] = { 0,0 };
-				int DiagP2Count[2] = { 0,0 };
-				for (int i = 0; i < 3; ++i)
-				{
-					int HorizP1Count = 0;
-					int HorizP2Count = 0;
-					int VertP1Count = 0;
-					int VertP2Count = 0;
-
-					for (int j = 0; j < 3; ++j)
-					{
-						if (field[gridX][gridY][j][i] == 1)
-							HorizP1Count++;
-						else if (field[gridX][gridY][j][i] == 2)
-							HorizP2Count++;
-
-						if (field[gridX][gridY][i][j] == 1)
-							VertP1Count++;
-						else if (field[gridX][gridY][i][j] == 2)
-							VertP2Count++;
-					}
-
-					if (field[gridX][gridY][i][i] == 1)
-						DiagP1Count[0]++;
-					else if (field[gridX][gridY][i][i] == 2)
-						DiagP2Count[0]++;
-
-					if (field[gridX][gridY][i][2 - i] == 1)
-						DiagP1Count[1]++;
-					else if (field[gridX][gridY][i][2 - i] == 2)
-						DiagP2Count[1]++;
-
-					if (HorizP2Count == 0)
-						P1gridScores[gridX][gridY] += HorizP1Count*HorizP1Count;
-					else if (HorizP1Count == 0)
-						P2gridScores[gridX][gridY] += HorizP2Count*HorizP2Count;
-
-					if (VertP2Count == 0)
-						P1gridScores[gridX][gridY] += VertP1Count*VertP1Count;
-					else if (VertP1Count == 0)
-						P2gridScores[gridX][gridY] += VertP2Count*VertP2Count;
-				}
-				if (DiagP2Count[0] == 0)
-					P1gridScores[gridX][gridY] += DiagP1Count[0] * DiagP1Count[0];
-				else if (DiagP1Count[0] == 0)
-					P2gridScores[gridX][gridY] += DiagP2Count[0] * DiagP2Count[0];
-
-				if (DiagP2Count[1] == 0)
-					P1gridScores[gridX][gridY] += DiagP1Count[1] * DiagP1Count[1];
-				else if (DiagP1Count[1] == 0)
-					P2gridScores[gridX][gridY] += DiagP2Count[1] * DiagP2Count[1];
-			}
-			else if (macroBoard[gridX][gridY] == 1)
-				P1gridScores[gridX][gridY] = scorePerGrid;
-			else if (macroBoard[gridX][gridY] == 2)
-				P2gridScores[gridX][gridY] = scorePerGrid;
-		}
-	}
-
-	evaluateMultiplyers();
-
-	score = 0;
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			score += P1gridScores[gridX][gridY] * P1Multiplyer[gridX][gridY];
-			score -= P2gridScores[gridX][gridY] * P2Multiplyer[gridX][gridY];
-		}
-	}
-
-	/*
-	score = 0;
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			if (macroBoard[gridX][gridY] == 1)
-			{
-				if (macroBoard[(gridX + 1) % 3][gridY] != 2 && macroBoard[(gridX + 2) % 3][gridY] != 2 &&
-					macroBoard[(gridX + 1) % 3][gridY] != 3 && macroBoard[(gridX + 2) % 3][gridY] != 3)
-				{
-					score += scorePerGrid;
-				}
-
-				if (macroBoard[gridX][(gridY + 1) % 3] != 2 && macroBoard[gridX][(gridY + 2) % 3] != 2 &&
-					macroBoard[gridX][(gridY + 1) % 3] != 3 && macroBoard[gridX][(gridY + 2) % 3] != 3)
-				{
-					score += scorePerGrid;
-				}
-
-				if (gridX == gridY && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 2 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 2 &&
-					gridX == gridY && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 3)
-				{
-					score += scorePerGrid;
-				}
-
-				if (gridX == 2 - gridY && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 2 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 2 &&
-					gridX == 2 - gridY && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 3)
-				{
-					score += scorePerGrid;
-				}
-
-
-			}
-			else if (macroBoard[gridX][gridY] == 2)
-			{
-				if (macroBoard[(gridX + 1) % 3][gridY] != 1 && macroBoard[(gridX + 2) % 3][gridY] != 1 &&
-					macroBoard[(gridX + 1) % 3][gridY] != 3 && macroBoard[(gridX + 2) % 3][gridY] != 3)
-				{
-					score -= scorePerGrid;
-				}
-
-				if (macroBoard[gridX][(gridY + 1) % 3] != 1 && macroBoard[gridX][(gridY + 2) % 3] != 1 &&
-					macroBoard[gridX][(gridY + 1) % 3] != 3 && macroBoard[gridX][(gridY + 2) % 3] != 3)
-				{
-					score -= scorePerGrid;
-				}
-
-				if (gridX == gridY && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 1 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 1 &&
-					gridX == gridY && macroBoard[(gridX + 1) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 2) % 3][(gridY + 2) % 3] != 3)
-				{
-					score -= scorePerGrid;
-				}
-
-				if (gridX == 2 - gridY && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 1 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 1 &&
-					gridX == 2 - gridY && macroBoard[(gridX + 2) % 3][(gridY + 1) % 3] != 3 && macroBoard[(gridX + 1) % 3][(gridY + 2) % 3] != 3)
-				{
-					score -= scorePerGrid;
-				}
-			}
-			else if (macroBoard[gridX][gridY] <= 0)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						if (field[gridX][gridY][x][y] == 1)
-						{
-							if (field[gridX][gridY][(x + 1) % 3][y] != 2 && field[gridX][gridY][(x + 2) % 3][y] != 2)
-							{
-								score++;
-							}
-
-							if (field[gridX][gridY][x][(y + 1) % 3] != 2 && field[gridX][gridY][x][(y + 2) % 3] != 2)
-							{
-								score++;
-							}
-
-							if (x == y && field[gridX][gridY][(x + 1) % 3][(y + 1) % 3] != 2 && field[gridX][gridY][(x + 2) % 3][(y + 2) % 3] != 2)
-							{
-								score++;
-							}
-
-							if (x == 2 - y && field[gridX][gridY][(x + 2) % 3][(y + 1) % 3] != 2 && field[gridX][gridY][(x + 1) % 3][(y + 2) % 3] != 2)
-							{
-								score++;
-							}
-						}
-						else if (field[gridX][gridY][x][y] == 2)
-						{
-							if (field[gridX][gridY][(x + 1) % 3][y] != 1 && field[gridX][gridY][(x + 2) % 3][y] != 1)
-							{
-								score--;
-							}
-
-							if (field[gridX][gridY][x][(y + 1) % 3] != 1 && field[gridX][gridY][x][(y + 2) % 3] != 1)
-							{
-								score--;
-							}
-
-							if (x == y && field[gridX][gridY][(x + 1) % 3][(y + 1) % 3] != 1 && field[gridX][gridY][(x + 2) % 3][(y + 2) % 3] != 1)
-							{
-								score--;
-							}
-
-							if (x == 2 - y && field[gridX][gridY][(x + 2) % 3][(y + 1) % 3] != 1 && field[gridX][gridY][(x + 1) % 3][(y + 2) % 3] != 1)
-							{
-								score--;
-							}
-						}
-					}
-				}
+				while (1);
 			}
 		}
-	}
-	*/
-}
-
-void board::evaluateMultiplyers()
-{
-	memcpy(P1Multiplyer, scoreMultiplyer, sizeof(int) * 3 * 3);
-	memcpy(P2Multiplyer, scoreMultiplyer, sizeof(int) * 3 * 3);
-
-	int DiagP1Count[2] = { 0,0 };
-	int DiagP2Count[2] = { 0,0 };
-	int DiagTieCount[2] = { 0,0 };
-	for (int i = 0; i < 3; ++i)
-	{
-		int HorizP1Count = 0;
-		int HorizP2Count = 0;
-		int HorizTieCount = 0;
-		int VertP1Count = 0;
-		int VertP2Count = 0;
-		int VertTieCount = 0;
-
-		for (int j = 0; j < 3; ++j)
-		{
-			if (macroBoard[j][i] == 1)
-				HorizP1Count++;
-			else if (macroBoard[j][i] == 2)
-				HorizP2Count++;
-			else if (macroBoard[j][i] == 3)
-				HorizTieCount++;
-
-			if (macroBoard[i][j] == 1)
-				VertP1Count++;
-			else if (macroBoard[i][j] == 2)
-				VertP2Count++;
-			else if (macroBoard[i][j] == 3)
-				VertTieCount++;
-		}
-
-		if (macroBoard[i][i] == 1)
-			DiagP1Count[0]++;
-		else if (macroBoard[i][i] == 2)
-			DiagP2Count[0]++;
-		else if (macroBoard[i][i] == 3)
-			DiagTieCount[0]++;
-
-		if (macroBoard[i][2 - i] == 1)
-			DiagP1Count[1]++;
-		else if (macroBoard[i][2 - i] == 2)
-			DiagP2Count[1]++;
-		else if (macroBoard[i][2 - i] == 3)
-			DiagTieCount[1]++;
-
-		if (HorizP1Count > 0 || HorizTieCount > 0)
-		{
-			P2Multiplyer[0][i]--;
-			P2Multiplyer[1][i]--;
-			P2Multiplyer[2][i]--;
-		}
-		if (HorizP2Count > 0 || HorizTieCount > 0)
-		{
-			P1Multiplyer[0][i]--;
-			P1Multiplyer[1][i]--;
-			P1Multiplyer[2][i]--;
-		}
-
-		if (VertP1Count > 0 || VertTieCount > 0)
-		{
-			P2Multiplyer[i][0]--;
-			P2Multiplyer[i][1]--;
-			P2Multiplyer[i][2]--;
-		}
-		if (VertP2Count > 0 || VertTieCount > 0)
-		{
-			P1Multiplyer[i][0]--;
-			P1Multiplyer[i][1]--;
-			P1Multiplyer[i][2]--;
+		else {
+			score += gridScore;
 		}
 	}
-
-	if (DiagP1Count[0] > 0 || DiagTieCount[0] > 0)
+	else
+		score += scores[field[gridX][gridY]];
+	playable = 3 * y + x;
+	if ((macroBoard / pow4[playable]) % 4 != 0)
 	{
-		P2Multiplyer[0][0]--;
-		P2Multiplyer[1][1]--;
-		P2Multiplyer[2][2]--;
-	}
-	if (DiagP2Count[0] > 0 || DiagTieCount[0] > 0)
-	{
-		P1Multiplyer[0][0]--;
-		P1Multiplyer[1][1]--;
-		P1Multiplyer[2][2]--;
-	}
-
-	if (DiagP1Count[1] > 0 || DiagTieCount[1] > 0)
-	{
-		P2Multiplyer[2][0]--;
-		P2Multiplyer[1][1]--;
-		P2Multiplyer[0][2]--;
-	}
-	if (DiagP2Count[1] > 0 || DiagTieCount[1] > 0)
-	{
-		P1Multiplyer[2][0]--;
-		P1Multiplyer[1][1]--;
-		P1Multiplyer[0][2]--;
+		playable = -1;
 	}
 }
 
-int board::evaluateMoveCount()
+board_small::~board_small()
 {
-	moveCount = 0;
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			if (macroBoard[gridX][gridY] == -1)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						if (field[gridX][gridY][x][y] == 0)
-						{
-							moveCount++;
-						}
-					}
-				}
-			}
-		}
-	}
-	return moveCount;
-}
-
-int board::getScore(int player)
-{
-	score = 0;
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			score += P1gridScores[gridX][gridY] * P1Multiplyer[gridX][gridY];
-			score -= P2gridScores[gridX][gridY] * P2Multiplyer[gridX][gridY];
-		}
-	}
-	return player == 1 ? score : -score;
-}
-
-/*
-int alphaBetaWithCount(board* b, int player, bool maximizing, int alpha, int beta, int* count)
-{
-	int opponent = getOpponent(player);
-	int scorePlayer = maximizing ? player : opponent;
-	if (b->getWinner() != 0)
-	{
-		(*count)--;
-		return (b->getWinner() == scorePlayer ? INT_MAX : INT_MIN);
-	}
-	int moveCount = b->getMoveCount();
-	if (moveCount > (*count)) 
-	{
-		(*count)--;
-		return b->getScore(scorePlayer);
-	}
-	int remainingMoves = moveCount;
-	int bestScore = maximizing ? INT_MIN : INT_MAX;
-
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			if (b->macroBoard[gridX][gridY] == -1)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						if (b->field[gridX][gridY][x][y] == 0)
-						{
-							board* newBoard = b->choices[gridX][gridY][x][y];
-							if (newBoard == NULL)
-							{
-								newBoard = b->copy();
-								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								b->choices[gridX][gridY][x][y] = newBoard;
-								
-							}
-							//board* newBoard = b->copy();
-							//newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-							/*
-							int prevScore = newBoard->getScore(scorePlayer);
-							newBoard->evaluateScore();
-							if (newBoard->getWinner() == 0 && prevScore != newBoard->getScore(scorePlayer))
-							{
-								board* copy = b->copy();
-								copy->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								while (1);
-							}
-							*/
-
-/*							int newCount = (*count) / remainingMoves;
-							remainingMoves--;
-							(*count) -= newCount;
-							int score = alphaBetaWithCount(newBoard, opponent, !maximizing, alpha, beta, &newCount);
-							(*count) += newCount;
-
-							if (maximizing)
-							{
-								if (score > bestScore)
-								{
-									bestScore = score;
-								}
-								else if (newBoard != NULL)
-								{
-								//	delete newBoard;
-								//	b->choices[gridX][gridY][x][y] = NULL;
-								}
-								if (score > alpha)
-									alpha = score;
-								//bestScore = max(bestScore, score);
-								//alpha = max(alpha, bestScore);
-								if (bestScore == INT_MAX)
-									return bestScore;
-							}
-							else {
-								if (score < bestScore)
-									bestScore = score;
-								if (score < beta)
-									beta = score;
-								//bestScore = min(bestScore, score);
-								//beta = min(beta, bestScore);
-								if (bestScore == INT_MIN)
-									return bestScore;
-							}
-							if (beta <= alpha)
-								return beta;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return bestScore;
-}
-*/
-int alphaBetaWithDepth(board* b, int player, int depth, bool maximizing, int alpha, int beta)
-{
-	int opponent = getOpponent(player);
-	int scorePlayer = maximizing ? player : opponent;
-	if (b->getWinner() != 0 || depth == 0)
-	{
-		return (b->getScore(scorePlayer));
-	}
-	int bestScore = maximizing ? INT_MIN : INT_MAX;
-
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			if (b->macroBoard[gridX][gridY] == -1)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						if (b->field[gridX][gridY][x][y] == 0)
-						{
-							/*
-							board* newBoard = b->choices[gridX][gridY][x][y];
-							if (newBoard == NULL)
-							{
-								newBoard = b->copy();
-								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								b->choices[gridX][gridY][x][y] = newBoard;
-							}
-							*/
-							board* newBoard = b->copy();
-							newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-							/*
-							int prevScore = newBoard->getScore(scorePlayer);
-							newBoard->evaluateScore();
-							if (newBoard->getWinner() == 0 && prevScore != newBoard->getScore(scorePlayer))
-							{
-							board* copy = b->copy();
-							copy->play_move(player, 3 * gridX + x, 3 * gridY + y);
-							while (1);
-							}
-							*/
-							int score = alphaBetaWithDepth(newBoard, opponent, depth-1, !maximizing, alpha, beta);
-
-							delete newBoard;
-
-							if (maximizing)
-							{
-								if (score > bestScore)
-								{
-									bestScore = score;
-								}
-								if (score > alpha)
-									alpha = score;
-								if (bestScore == INT_MAX)
-									return bestScore;
-							}
-							else {
-								if (score < bestScore)
-									bestScore = score;
-								if (score < beta)
-									beta = score;
-								if (bestScore == INT_MIN)
-									return bestScore;
-							}
-							if (beta <= alpha)
-								return beta;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return bestScore;
-}
-/*
-int MTDF_With_Count(board* b, int f, int player, bool maximizing, int* count)
-{
-	int g = f;
-	int upperBound = INT_MAX;
-	int lowerBound = INT_MIN;
-	while (lowerBound < upperBound)
-	{
-		int beta = max(g, lowerBound + 1);
-		g = alphaBetaWithCount(b, player, maximizing, beta-1, beta, count);
-		if (g < beta)
-			upperBound = g;
-		else
-			lowerBound = g;
-	}
-	return g;
-}
-*/
-
-short int miniMax_simple(board_simple* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
-{
-	if (depth == 0 || b->winner != 0)
-	{
-		(*count)++;
-		return b->get_score(player);
-	}
-	int bestScore = SHRT_MIN+1;
-	for (int gridY = 0; gridY < 3; ++gridY)
-	{
-		for (int gridX = 0; gridX < 3; ++gridX)
-		{
-			if (b->macroBoard[gridX][gridY] == -1)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						if (b->field[gridX][gridY][x][y] == 0)
-						{
-							board_simple* newBoard = b->copy();
-							newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-							int score = -miniMax_simple(newBoard, getOpponent(player), -beta, -alpha, depth - 1, count);
-							delete newBoard;
-							if (score == SHRT_MAX)
-								return score;
-							if (score > bestScore)
-							{
-								bestScore = score;
-							}
-
-							if (score > alpha)
-							{
-								alpha = score;
-							}
-							if (beta <= alpha)
-								return beta;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return bestScore;
-}
-
-short int MDTF_simple(board_simple* b, char player, char depth, unsigned int* count, short int f)
-{
-	short int g = f;
-	short int upperBound = SHRT_MAX;
-	short int lowerBound = SHRT_MIN+1;
-	while (lowerBound < upperBound)
-	{
-		short int beta = g;
-		if (lowerBound + 1 > g)
-			beta = lowerBound + 1;
-		g = miniMax_simple(b, player, beta - 1, beta, depth, count);
-		if (g < beta)
-			upperBound = g;
-		else
-			lowerBound = g;
-	}
-	return g;
+	delete PVNode;
 }
 
 short int alpha_beta_fast(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
 {
-	if (b->winner != 0 || depth == 0)
+	if (b->winner != 0 || depth <= 0)
 	{
-		(*count)++;
 		return b->score * (player == 1 ? 1 : -1);
 	}
 	short int bestScore = SHRT_MIN + 1;
+	char opponent = getOpponent(player);
 	if (b->playable == -1)
 	{
 		int macroBoard = b->macroBoard;
@@ -1543,13 +184,16 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 								board_small* newBoard = new board_small();
 								memcpy(newBoard, b, sizeof(board_small));
 								newBoard->PVNode = NULL;
+								newBoard->PVCoord = -1;
 								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								short int score = -alpha_beta_fast(newBoard, getOpponent(player), -beta, -alpha, depth - 1, count);
-								if (-score > bestScore)
+								(*count)++;
+								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+								if (score > bestScore)
 								{
-									bestScore = -score;
+									bestScore = score;
 									delete b->PVNode;
 									b->PVNode = newBoard;
+									b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 								}
 								else
 								{
@@ -1585,13 +229,16 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 					board_small* newBoard = new board_small();
 					memcpy(newBoard, b, sizeof(board_small));
 					newBoard->PVNode = NULL;
+					newBoard->PVCoord = -1;
 					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-					short int score = -alpha_beta_fast(newBoard, getOpponent(player), -beta, -alpha, depth - 1, count);
-					if (-score > bestScore)
+					(*count)++;
+					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+					if (score > bestScore)
 					{
-						bestScore = -score;
+						bestScore = score;
 						delete b->PVNode;
 						b->PVNode = newBoard;
+						b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 					}
 					else
 					{
@@ -1614,98 +261,641 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 	return bestScore;
 }
 
-short int MDTF_fast(board_small* b, char player, char depth, unsigned int* count, short int f)
+short int PVSearch(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
 {
-	short int upperBound = SHRT_MAX;
-	short int lowerBound = SHRT_MIN + 1;
-	while (lowerBound < upperBound)
+	if (b->winner != 0 || depth <= 0)
 	{
-		short int beta = f;
-		if (lowerBound + 1 > f)
-			beta = lowerBound + 1;
-		f = alpha_beta_fast(b, player, beta - 1, beta, depth, count);
-		if (f < beta)
-			upperBound = f;
-		else
-			lowerBound = f;
+		return b->score * (player == 1 ? 1 : -1);
 	}
-	return f;
+	short int bestScore = SHRT_MIN + 1;
+	char opponent = getOpponent(player);
+	board_small* PVNode = NULL;
+	signed char PVCoord = -1;
+	if (b->PVNode == NULL || b->PVCoord == -1)
+	{
+		return alpha_beta_fast(b, player, alpha, beta, depth, count);
+	}
+	if (b->PVCoord != -1)
+	{
+		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1, count);
+		if (score > bestScore)
+		{
+			bestScore = score;
+		}
+		PVNode = b->PVNode;
+		b->PVNode = NULL;
+		PVCoord = b->PVCoord;
+		if (score > alpha)
+		{
+			alpha = score;
+		}
+		if (beta <= alpha)
+		{
+			b->PVNode = PVNode;
+			b->PVCoord = PVCoord;
+			return beta;
+		}
+	}
+	if (b->playable == -1)
+	{
+		int macroBoard = b->macroBoard;
+		for (char gridY = 0; gridY < 3; ++gridY)
+		{
+			for (char gridX = 0; gridX < 3; ++gridX)
+			{
+				int board = macroBoard % 4;
+				macroBoard /= 4;
+				if (board == 0)
+				{
+					short int field = b->field[gridX][gridY];
+					for (int y = 0; y < 3; ++y)
+					{
+						for (int x = 0; x < 3; ++x)
+						{
+							if (field % 3 == 0)
+							{
+								if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+								{
+									board_small* newBoard = new board_small();
+									memcpy(newBoard, b, sizeof(board_small));
+									newBoard->PVNode = NULL;
+									newBoard->PVCoord = -1;
+									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+									(*count)++;
+									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+									if (alpha < score && score < beta)
+									{
+										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+									}
+
+									if (score > bestScore)
+									{
+										bestScore = score;
+										delete PVNode;
+										PVNode = newBoard;
+										PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+									}
+									else
+									{
+										delete newBoard;
+									}
+									if (score > alpha)
+									{
+										alpha = score;
+									}
+									if (beta <= alpha)
+									{
+										b->PVNode = PVNode;
+										b->PVCoord = PVCoord;
+										return beta;
+									}
+								}							
+							}
+							field /= 3;
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		char gridX = boxCoord[b->playable];
+		char gridY = gridCoord[b->playable];
+		short int field = b->field[gridX][gridY];
+		for (char y = 0; y < 3; ++y)
+		{
+			for (char x = 0; x < 3; ++x)
+			{
+				if (field % 3 == 0) //If grid space is empty
+				{
+					if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+					{
+						board_small* newBoard = new board_small();
+						memcpy(newBoard, b, sizeof(board_small));
+						newBoard->PVNode = NULL;
+						newBoard->PVCoord = -1;
+						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+						(*count)++;
+						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count);
+						if (alpha < score && score < beta)
+						{
+							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+						}
+
+						if (score > bestScore)
+						{
+							bestScore = score;
+							delete PVNode;
+							PVNode = newBoard;
+							PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+						}
+						else
+						{
+							delete newBoard;
+						}
+						if (score > alpha)
+						{
+							alpha = score;
+						}
+						if (beta <= alpha)
+						{
+							b->PVNode = PVNode;
+							b->PVCoord = PVCoord;
+							return beta;
+						}
+					}
+				}
+				field /= 3;
+			}
+		}
+	}
+	delete b->PVNode;
+	b->PVCoord = PVCoord;
+	b->PVNode = PVNode;
+	return bestScore;
+}
+
+short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+{
+	if (b->winner != 0 || depth <= 0)
+	{
+		return b->score * (player == 1 ? 1 : -1);
+	}
+	short int bestScore = SHRT_MIN + 1;
+	char opponent = getOpponent(player);
+	board_small* PVNode = NULL;
+	signed char PVCoord = -1;
+	if (b->PVCoord != -1)
+	{
+		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1, count);
+		allMoves->push_back(b->PVNode);
+		if (score > bestScore)
+		{
+			bestScore = score;
+		}
+		
+		PVNode = b->PVNode;
+		b->PVNode = NULL;
+		PVCoord = b->PVCoord;
+		if (score > alpha)
+		{
+			alpha = score;
+		}
+		if (beta <= alpha)
+		{
+			b->PVNode = PVNode;
+			b->PVCoord = PVCoord;
+			return beta;
+		}
+	}
+	if (b->playable == -1)
+	{
+		int macroBoard = b->macroBoard;
+		for (char gridY = 0; gridY < 3; ++gridY)
+		{
+			for (char gridX = 0; gridX < 3; ++gridX)
+			{
+				int board = macroBoard % 4;
+				macroBoard /= 4;
+				if (board == 0)
+				{
+					short int field = b->field[gridX][gridY];
+					for (int y = 0; y < 3; ++y)
+					{
+						for (int x = 0; x < 3; ++x)
+						{
+							if (field % 3 == 0)
+							{
+								if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+								{
+									board_small* newBoard = new board_small();
+									memcpy(newBoard, b, sizeof(board_small));
+									newBoard->PVNode = NULL;
+									newBoard->PVCoord = -1;
+									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+									(*count)++;
+									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+									allMoves->push_back(newBoard);
+									
+									if (alpha < score && score < beta)
+									{
+										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+									}
+
+									if (score > bestScore)
+									{
+										bestScore = score;
+									//	delete PVNode;
+										PVNode = newBoard;
+										PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+									}
+									else
+									{
+									//	delete newBoard;
+									}
+									if (score > alpha)
+									{
+										alpha = score;
+									}
+									if (beta <= alpha)
+									{
+										b->PVNode = PVNode;
+										b->PVCoord = PVCoord;
+										return beta;
+									}
+								}
+							}
+							field /= 3;
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		char gridX = boxCoord[b->playable];
+		char gridY = gridCoord[b->playable];
+		short int field = b->field[gridX][gridY];
+		for (char y = 0; y < 3; ++y)
+		{
+			for (char x = 0; x < 3; ++x)
+			{
+				if (field % 3 == 0) //If grid space is empty
+				{
+					if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+					{
+						board_small* newBoard = new board_small();
+						memcpy(newBoard, b, sizeof(board_small));
+						newBoard->PVNode = NULL;
+						newBoard->PVCoord = -1;
+						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+						(*count)++;
+						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count);
+						allMoves->push_back(newBoard);
+						if (alpha < score && score < beta)
+						{
+							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+						}
+
+						if (score > bestScore)
+						{
+							bestScore = score;
+						//	delete PVNode;
+							PVNode = newBoard;
+							PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+						}
+						else
+						{
+						//	delete newBoard;
+						}
+						if (score > alpha)
+						{
+							alpha = score;
+						}
+						if (beta <= alpha)
+						{
+							b->PVNode = PVNode;
+							b->PVCoord = PVCoord;
+							return beta;
+						}
+					}
+				}
+				field /= 3;
+			}
+		}
+	}
+	delete b->PVNode;
+	b->PVCoord = PVCoord;
+	b->PVNode = PVNode;
+	return bestScore;
+}
+
+short int alpha_beta_moves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+{
+	if (b->winner != 0 || depth <= 0)
+	{
+		return b->score * (player == 1 ? 1 : -1);
+	}
+	short int bestScore = SHRT_MIN + 1;
+	char opponent = getOpponent(player);
+	if (b->playable == -1)
+	{
+		int macroBoard = b->macroBoard;
+		for (char gridY = 0; gridY < 3; ++gridY)
+		{
+			for (char gridX = 0; gridX < 3; ++gridX)
+			{
+				int board = macroBoard % 4;
+				macroBoard /= 4;
+				if (board == 0)
+				{
+					short int field = b->field[gridX][gridY];
+					for (int y = 0; y < 3; ++y)
+					{
+						for (int x = 0; x < 3; ++x)
+						{
+							if (field % 3 == 0)
+							{
+								board_small* newBoard = new board_small();
+								memcpy(newBoard, b, sizeof(board_small));
+								newBoard->PVNode = NULL;
+								newBoard->PVCoord = -1;
+								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+								(*count)++;
+								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+								allMoves->push_back(newBoard);
+								if (score > bestScore)
+								{
+									bestScore = score;
+									//delete b->PVNode;
+									b->PVNode = newBoard;
+									b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+								}
+								else
+								{
+									//delete newBoard;
+								}
+
+								if (score > alpha)
+								{
+									alpha = score;
+								}
+								//Remove Alpha-Beta pruning, because every possible opponent move should be saved.
+							}
+							field /= 3;
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		char gridX = boxCoord[b->playable];
+		char gridY = gridCoord[b->playable];
+		short int field = b->field[gridX][gridY];
+		for (char y = 0; y < 3; ++y)
+		{
+			for (char x = 0; x < 3; ++x)
+			{
+				if (field % 3 == 0) //If grid space is empty
+				{
+					board_small* newBoard = new board_small();
+					memcpy(newBoard, b, sizeof(board_small));
+					newBoard->PVNode = NULL;
+					newBoard->PVCoord = -1;
+					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+					(*count)++;
+					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+					allMoves->push_back(newBoard);
+					if (score > bestScore)
+					{
+						bestScore = score;
+						//delete b->PVNode;
+						b->PVNode = newBoard;
+						b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+					}
+					else
+					{
+						//delete newBoard;
+					}
+
+					if (score > alpha)
+					{
+						alpha = score;
+					}
+					//Remove Alpha-Beta pruning, because every possible opponent move should be saved.
+				}
+				field /= 3;
+			}
+		}
+	}
+	return bestScore;
+}
+
+short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+{
+	if (b->winner != 0 || depth <= 0)
+	{
+		return b->score * (player == 1 ? 1 : -1);
+	}
+	short int bestScore = SHRT_MIN + 1;
+	char opponent = getOpponent(player);
+	board_small* PVNode = NULL;
+	signed char PVCoord = -1;
+	if (b->PVCoord != -1)
+	{
+		vector<board_small*> newMoves;
+		short int score = -PVSearchWithAllMoves(b->PVNode, opponent, -beta, -alpha, depth - 1, count, &newMoves);
+		if (score > bestScore)
+		{
+			allMoves->swap(newMoves);
+			for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+			{
+				delete (*it);
+			}
+			newMoves.clear();
+			bestScore = score;
+		}
+
+		PVNode = b->PVNode;
+		b->PVNode = NULL;
+		PVCoord = b->PVCoord;
+		if (score > alpha)
+		{
+			alpha = score;
+		}
+		if (beta <= alpha)
+		{
+			b->PVNode = PVNode;
+			b->PVCoord = PVCoord;
+			return beta;
+		}
+	}
+	if (b->playable == -1)
+	{
+		int macroBoard = b->macroBoard;
+		for (char gridY = 0; gridY < 3; ++gridY)
+		{
+			for (char gridX = 0; gridX < 3; ++gridX)
+			{
+				int board = macroBoard % 4;
+				macroBoard /= 4;
+				if (board == 0)
+				{
+					short int field = b->field[gridX][gridY];
+					for (int y = 0; y < 3; ++y)
+					{
+						for (int x = 0; x < 3; ++x)
+						{
+							if (field % 3 == 0)
+							{
+								if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+								{
+									board_small* newBoard = new board_small();
+									memcpy(newBoard, b, sizeof(board_small));
+									newBoard->PVNode = NULL;
+									newBoard->PVCoord = -1;
+									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+									(*count)++;
+									vector<board_small*> newMoves;
+									short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count, &newMoves); //Subtract 2 from depth to improve performance when encountering full-board moves.
+
+									if (alpha < score && score < beta)
+									{
+										for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+										{
+											delete (*it);
+										}
+										newMoves.clear();
+										score = -alpha_beta_moves(newBoard, opponent, -beta, -alpha, depth - 1, count, &newMoves);
+									}
+
+									if (score > bestScore)
+									{
+										bestScore = score;
+										allMoves->swap(newMoves);
+										for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+										{
+											delete (*it);
+										}
+										newMoves.clear();
+										//	delete PVNode;
+										PVNode = newBoard;
+										PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+									}
+									else
+									{
+										for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+										{
+											delete (*it);
+										}
+										newMoves.clear();
+										//	delete newBoard;
+									}
+									if (score > alpha)
+									{
+										alpha = score;
+									}
+									if (beta <= alpha)
+									{
+										b->PVNode = PVNode;
+										b->PVCoord = PVCoord;
+										return beta;
+									}
+								}
+							}
+							field /= 3;
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		char gridX = boxCoord[b->playable];
+		char gridY = gridCoord[b->playable];
+		short int field = b->field[gridX][gridY];
+		for (char y = 0; y < 3; ++y)
+		{
+			for (char x = 0; x < 3; ++x)
+			{
+				if (field % 3 == 0) //If grid space is empty
+				{
+					if (b->PVCoord != 9 * (3 * gridY + y) + 3 * gridX + x)
+					{
+						board_small* newBoard = new board_small();
+						memcpy(newBoard, b, sizeof(board_small));
+						newBoard->PVNode = NULL;
+						newBoard->PVCoord = -1;
+						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+						(*count)++;
+						vector<board_small*> newMoves;
+						short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count, &newMoves); 
+
+						if (alpha < score && score < beta)
+						{
+							for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+							{
+								delete (*it);
+							}
+							newMoves.clear();
+							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+						}
+
+						if (score > bestScore)
+						{
+							bestScore = score;
+							allMoves->swap(newMoves);
+							for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+							{
+								delete (*it);
+							}
+							newMoves.clear();
+							//	delete PVNode;
+							PVNode = newBoard;
+							PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
+						}
+						else
+						{
+							for (vector<board_small*>::iterator it = newMoves.begin(); it != newMoves.end(); ++it)
+							{
+								delete (*it);
+							}
+							newMoves.clear();
+							//	delete newBoard;
+						}
+						if (score > alpha)
+						{
+
+							alpha = score;
+						}
+						if (beta <= alpha)
+						{
+							b->PVNode = PVNode;
+							b->PVCoord = PVCoord;
+							return beta;
+						}
+					}
+				}
+				field /= 3;
+			}
+		}
+	}
+	delete b->PVNode;
+	b->PVCoord = PVCoord;
+	b->PVNode = PVNode;
+	return bestScore;
 }
 
 int main()
 {
-	/*
-	ifstream scoreFile("scores.txt");
-	ifstream winnerFile("gridWinners.txt");
-	ifstream bScoreFile("boardScores.txt");
+	int max_timebank = 0;
+	int time_per_move = 0;
+	int round = 0;
+	int move = 0;
+	char player_names[16];
+	char your_bot[8];
+	int your_botid = 0;
+
+	board_small* smallB = new board_small();
 	
-	if (scoreFile.is_open())
-	{
-		string line;
-		int index = 0;
-		while (getline(scoreFile, line))
-		{
-			scores[index++] = stoi(line);
-		}
-		scoreFile.close();
-	}
-	else {
-		cerr << "Score file not found!" << endl;
-		return 0;
-	}
-	
-	if (winnerFile.is_open())
-	{
-		string line;
-		int index = 0;
-		while (getline(winnerFile, line))
-		{
-			gridWinners[index++] = stoi(line);
-		}
-		winnerFile.close();
-	}
-	else {
-		cerr << "Winner file not found!" << endl;
-		return 0;
-	}
-	if (bScoreFile.is_open())
-	{
-		string line;
-		int index = 0;
-		while (getline(bScoreFile, line))
-		{
-			gridScores[index++] = stoi(line);
-		}
-		bScoreFile.close();
-	}
-	else {
-		cerr << "Board score file not found!" << endl;
-		return 0;
-	}
-	*/
+	scanf("settings timebank %i\n", &max_timebank);
+	scanf("settings time_per_move %i\n", &time_per_move);
+	scanf("settings player_names %s\n", player_names);
+	scanf("settings your_bot %s\n", your_bot);
+	scanf("settings your_botid %i\n", &your_botid);
+
 	while (1)
 	{
-		board_small* smallB = new board_small();
-		board* b = new board();
-		for (int gridY = 0; gridY < 3; ++gridY)
-		{
-			for (int gridX = 0; gridX < 3; ++gridX)
-			{
-				for (int y = 0; y < 3; ++y)
-				{
-					for (int x = 0; x < 3; ++x)
-					{
-						b->field[gridX][gridY][x][y] = 0;
-					}
-				}
-				b->macroBoard[gridX][gridY] = -1;
-			}
-		}
-		smallB->playable = -1;
-		char depth = 9;
-		unsigned int count = 0;
-		int start = clock();
 		
+		char depth = 10;
+		unsigned int count = 0;
+
+		scanf("update game round %i\n", &round);
+		+scanf("update game move %i\n", &move);
+		+scanf("update game field ");
+
+		board_small* newBoard = new board_small();
 		for (int gridY = 0; gridY < 3; ++gridY)
 		{
 			for (int y = 0; y < 3; ++y)
@@ -1714,33 +904,76 @@ int main()
 				{
 					for (int x = 0; x < 3; ++x)
 					{
-						board_small* newB = new board_small();
-						memcpy(newB, smallB, sizeof(board_small));
-						newB->play_move(1, 3*gridX + x, 3*gridY + y);
-						int score = alpha_beta_fast(newB, 2, SHRT_MIN + 1, SHRT_MAX, depth - 1, &count);
-						cout << "[" << score << "]";
+						int boxVal = 0;
+						scanf("%i,", &boxVal);
+						newBoard->field[gridX][gridY] += pow3[3*y+x] * boxVal;
 					}
-					cout << " ";
 				}
-				cout << endl;
 			}
-			cout << endl;
 		}
-		
-		int score = alpha_beta_fast(smallB, 1, SHRT_MIN + 1, SHRT_MAX, depth, &count);
-		board_small* pv = smallB->PVNode;
-		while (pv != NULL)
+		bool openBoard = false;
+		newBoard->playable = -1;
+		scanf("\nupdate game macroboard ");
+		for (int i = 0; i < 9; ++i)
 		{
-			pv->draw_board();
-			cout << pv->score << endl;
-			pv = pv->PVNode;
+			int gridVal = 0;
+			scanf("%i,", &gridVal);
+			if (gridVal == -1)
+			{
+				if (openBoard == false)
+				{
+					if (newBoard->playable != -1)
+					{
+						openBoard = true;
+						newBoard->playable = -1;
+					}else{
+						newBoard->playable = i;
+					}
+				}
+				gridVal = 0;
+			}
+			newBoard->macroBoard += pow4[i] * gridVal;
+
 		}
-		
-		//short int score = MDTF_fast(smallB, 1, depth, &count, 6);
-		int stop = clock();
-		float actualTime = ((stop - start) / (CLOCKS_PER_SEC / 1000.0f));
-		float nodesPerMs = count / actualTime;
-		//cout << "Depth " << (int)depth << ": Score " << score << " with " << count << " nodes found in " << actualTime << " ms. (" << (int)(nodesPerMs * 1000) << " nodes per second)" << endl;
+		cerr << "ORIGINAL:" << endl;
+		newBoard->draw_board();
+
+		vector<board_small*> nextMoves;
+		int score = PVSearchWithOpponentMoves(newBoard, your_botid, SHRT_MIN + 1, SHRT_MAX, depth, &count, &nextMoves);
+
+		cerr << "PLAYER " << your_botid << " MOVE:" << endl;
+		newBoard->PVNode->draw_board();
+		cerr << "PLAYER " << getOpponent(your_botid) << " MOVES:" << endl;
+		for (vector<board_small*>::iterator it = nextMoves.begin(); it != nextMoves.end(); ++it)
+		{
+			(*it)->draw_board();
+			delete (*it);
+		}
+		nextMoves.clear();
+		while (1);
+
+		int moveCount = 1;
+		int timeBank = 10000;
+		while (smallB->winner == 0)
+		{
+			smallB->draw_board();
+			int clock1 = clock();
+			int score = PVSearch(smallB, 1, SHRT_MIN + 1, SHRT_MAX, depth, &count);
+			int clock2 = clock();
+			float actualTime = ((clock2 - clock1) / (CLOCKS_PER_SEC / 1000.0f));
+			timeBank = min(timeBank - (int)actualTime + 500, 10000);
+			float nodesPerMs = count / actualTime;
+			cerr << moveCount++ << ": Depth " << (int)depth << ", Score " << score << " with " << count << " nodes found in " << actualTime << " ms. (" << (int)(nodesPerMs * 1000) << " nodes per second), Time remaining: " << timeBank << endl;
+			smallB = smallB->PVNode;
+			smallB->draw_board();
+			if (smallB->winner == 0)
+				smallB = smallB->PVNode;
+			if (actualTime > 1250 || timeBank < 2000)
+				depth--;
+			else if (actualTime < 750)
+				depth++;
+		}
+
 		while (1);
 	}
 	while (1);
