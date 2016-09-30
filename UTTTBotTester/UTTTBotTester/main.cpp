@@ -83,19 +83,20 @@ int _tmain(int argc, TCHAR *argv[])
 	// Data is written to the pipe's buffers, so it is not necessary to wait
 	// until the child process is running before writing data.
 	int i = 0;
-	/*
+	string input = 
+		(string)"settings timebank 10000\n" +
+		"settings time_per_move 500\n" +
+		"settings player_names player1,player2\n" +
+		"settings your_bot player1\n" +
+		"settings your_botid 1\n" +
+		"update game round 1\n" +
+		"update game move 1\n" +
+		"update game field 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n" +
+		"update game macroboard -1,-1,-1,-1,-1,-1,-1,-1,-1\n" +
+		"action move 10000\n";
 	WriteToPipe("settings timebank 10000\n");
-	WriteToPipe("settings time_per_move 500\n");
-	WriteToPipe("settings player_names player1,player2\n");
-	WriteToPipe("settings your_bot player1\n");
-	WriteToPipe("settings your_botid 1\n");
-
-	WriteToPipe("update game round 1\n");
-	WriteToPipe("update game move 1\n");
-	WriteToPipe("update game field 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n");
-	WriteToPipe("update game macroboard -1,-1,-1,-1,-1,-1,-1,-1,-1\n");
-	*/
 	WriteToPipe("action move 10000\n");
+
 	while (1)
 	{
 		//string str = "cba\n";

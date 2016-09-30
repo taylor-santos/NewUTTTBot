@@ -1,10 +1,13 @@
 #include <iostream>
+#include <stdio.h>
+#include <assert.h>
 #include <string>
 #include <cstring>
 #include <sstream>
 #include <algorithm>
 #include <ctime>
 #include <vector>
+#include <fstream>
 #include "scores.h"
 
 #define SHRT_MAX 32767 
@@ -12,16 +15,15 @@
 
 using namespace std;
 
-const char boxCoord[9]  = { 0,1,2,0,1,2,0,1,2 };
+const char boxCoord[9] = { 0,1,2,0,1,2,0,1,2 };
 const char gridCoord[9] = { 0,0,0,1,1,1,2,2,2 };
-const char adjacentCoord[3] =  { 1,2,0 };
+const char adjacentCoord[3] = { 1,2,0 };
 const char adjacentCoord2[3] = { 2,0,1 };
 const unsigned short int pow3[9] = { 1, 3, 9, 27, 81, 243, 729, 2187, 6561 };
 const unsigned int pow4[9] = { 1, 4, 16, 64, 256, 1024, 4096, 16384, 65536 };
+const unsigned int pow10[7] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 
-//signed char scores[19683];
-//char gridWinners[19683];
-//short int gridScores[262144];
+signed char optMoves[3*81000000];
 
 char getOpponent(char player)
 {
@@ -36,8 +38,9 @@ struct board_small
 	short int score = 0;
 	int macroBoard = 0;
 	short int field[3][3] = { { 0,0,0 },{ 0,0,0 },{ 0,0,0 } };
-	board_small* PVNode = NULL;
+	//board_small* PVNode = NULL;
 	signed char PVCoord = -1;
+	char playedCoord = 81;
 
 	void draw_board();
 	void play_move(char player, char fieldX, char fieldY);
@@ -62,6 +65,14 @@ struct board_small
 	}
 
 	~board_small();
+};
+
+struct less_than_key
+{
+	inline bool operator() (const board_small* struct1, const board_small* struct2)
+	{
+		return (struct1->playedCoord < struct2->playedCoord);
+	}
 };
 
 void board_small::draw_board()
@@ -116,6 +127,8 @@ void board_small::play_move(char player, char fieldX, char fieldY)
 	char y = boxCoord[fieldY];
 	char gridX = gridCoord[fieldX];
 	char gridY = gridCoord[fieldY];
+
+	playedCoord = 9 * fieldY + fieldX;
 
 	score -= scores[field[gridX][gridY]];
 
@@ -188,10 +201,10 @@ void board_small::evaluate_score()
 
 board_small::~board_small()
 {
-	delete PVNode;
+	//delete PVNode;
 }
 
-short int alpha_beta_fast(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
+short int alpha_beta_fast(board_small* b, char player, short int alpha, short int beta, char depth)
 {
 	if (b->winner != 0 || depth <= 0)
 	{
@@ -219,22 +232,18 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 							{
 								board_small* newBoard = new board_small();
 								memcpy(newBoard, b, sizeof(board_small));
-								newBoard->PVNode = NULL;
+								//newBoard->PVNode = NULL;
 								newBoard->PVCoord = -1;
 								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								(*count)++;
-								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1); //Subtract 2 from depth to improve performance when encountering full-board moves.
 								if (score > bestScore)
 								{
 									bestScore = score;
-									delete b->PVNode;
-									b->PVNode = newBoard;
+									//delete b->PVNode;
+									//b->PVNode = newBoard;
 									b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 								}
-								else
-								{
-									delete newBoard;
-								}
+								delete newBoard;
 
 								if (score > alpha)
 								{
@@ -264,22 +273,18 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 				{
 					board_small* newBoard = new board_small();
 					memcpy(newBoard, b, sizeof(board_small));
-					newBoard->PVNode = NULL;
+					//newBoard->PVNode = NULL;
 					newBoard->PVCoord = -1;
 					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-					(*count)++;
-					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 					if (score > bestScore)
 					{
 						bestScore = score;
-						delete b->PVNode;
-						b->PVNode = newBoard;
+						//delete b->PVNode;
+						//b->PVNode = newBoard;
 						b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 					}
-					else
-					{
-						delete newBoard;
-					}
+					delete newBoard;
 
 					if (score > alpha)
 					{
@@ -296,8 +301,8 @@ short int alpha_beta_fast(board_small* b, char player, short int alpha, short in
 	}
 	return bestScore;
 }
-
-short int PVSearch(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count)
+/*
+short int PVSearch(board_small* b, char player, short int alpha, short int beta, char depth)
 {
 	if (b->winner != 0 || depth <= 0)
 	{
@@ -309,11 +314,11 @@ short int PVSearch(board_small* b, char player, short int alpha, short int beta,
 	signed char PVCoord = -1;
 	if (b->PVNode == NULL || b->PVCoord == -1)
 	{
-		return alpha_beta_fast(b, player, alpha, beta, depth, count);
+		return alpha_beta_fast(b, player, alpha, beta, depth);
 	}
 	if (b->PVCoord != -1)
 	{
-		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1, count);
+		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1);
 		if (score > bestScore)
 		{
 			bestScore = score;
@@ -357,11 +362,10 @@ short int PVSearch(board_small* b, char player, short int alpha, short int beta,
 									newBoard->PVNode = NULL;
 									newBoard->PVCoord = -1;
 									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-									(*count)++;
-									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1); //Subtract 2 from depth to improve performance when encountering full-board moves.
 									if (alpha < score && score < beta)
 									{
-										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count);
+										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 									}
 
 									if (score > bestScore)
@@ -385,7 +389,7 @@ short int PVSearch(board_small* b, char player, short int alpha, short int beta,
 										b->PVCoord = PVCoord;
 										return beta;
 									}
-								}							
+								}
 							}
 							field /= 3;
 						}
@@ -411,11 +415,10 @@ short int PVSearch(board_small* b, char player, short int alpha, short int beta,
 						newBoard->PVNode = NULL;
 						newBoard->PVCoord = -1;
 						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-						(*count)++;
-						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count);
+						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1);
 						if (alpha < score && score < beta)
 						{
-							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 						}
 
 						if (score > bestScore)
@@ -451,7 +454,7 @@ short int PVSearch(board_small* b, char player, short int alpha, short int beta,
 	return bestScore;
 }
 
-short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, short int beta, char depth, vector<board_small*>* allMoves)
 {
 	if (b->winner != 0 || depth <= 0)
 	{
@@ -463,13 +466,13 @@ short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, sho
 	signed char PVCoord = -1;
 	if (b->PVCoord != -1)
 	{
-		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1, count);
+		short int score = -PVSearch(b->PVNode, opponent, -beta, -alpha, depth - 1);
 		allMoves->push_back(b->PVNode);
 		if (score > bestScore)
 		{
 			bestScore = score;
 		}
-		
+
 		PVNode = b->PVNode;
 		b->PVNode = NULL;
 		PVCoord = b->PVCoord;
@@ -509,25 +512,24 @@ short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, sho
 									newBoard->PVNode = NULL;
 									newBoard->PVCoord = -1;
 									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-									(*count)++;
-									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+									short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1); //Subtract 2 from depth to improve performance when encountering full-board moves.
 									allMoves->push_back(newBoard);
-									
+
 									if (alpha < score && score < beta)
 									{
-										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count);
+										score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 									}
 
 									if (score > bestScore)
 									{
 										bestScore = score;
-									//	delete PVNode;
+										//	delete PVNode;
 										PVNode = newBoard;
 										PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 									}
 									else
 									{
-									//	delete newBoard;
+										//	delete newBoard;
 									}
 									if (score > alpha)
 									{
@@ -565,24 +567,23 @@ short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, sho
 						newBoard->PVNode = NULL;
 						newBoard->PVCoord = -1;
 						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-						(*count)++;
-						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count);
+						short int score = -alpha_beta_fast(newBoard, opponent, -(alpha + 1), -alpha, depth - 1);
 						allMoves->push_back(newBoard);
 						if (alpha < score && score < beta)
 						{
-							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+							score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 						}
 
 						if (score > bestScore)
 						{
 							bestScore = score;
-						//	delete PVNode;
+							//	delete PVNode;
 							PVNode = newBoard;
 							PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 						}
 						else
 						{
-						//	delete newBoard;
+							//	delete newBoard;
 						}
 						if (score > alpha)
 						{
@@ -605,8 +606,8 @@ short int PVSearchWithAllMoves(board_small* b, char player, short int alpha, sho
 	b->PVNode = PVNode;
 	return bestScore;
 }
-
-short int alpha_beta_moves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+*/
+short int alpha_beta_moves(board_small* b, char player, short int alpha, short int beta, char depth, vector<board_small*>* allMoves)
 {
 	if (b->winner != 0 || depth <= 0)
 	{
@@ -634,17 +635,16 @@ short int alpha_beta_moves(board_small* b, char player, short int alpha, short i
 							{
 								board_small* newBoard = new board_small();
 								memcpy(newBoard, b, sizeof(board_small));
-								newBoard->PVNode = NULL;
+								//newBoard->PVNode = NULL;
 								newBoard->PVCoord = -1;
 								newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-								(*count)++;
-								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 2, count); //Subtract 2 from depth to improve performance when encountering full-board moves.
+								short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1); //Subtract 2 from depth to improve performance when encountering full-board moves.
 								allMoves->push_back(newBoard);
 								if (score > bestScore)
 								{
 									bestScore = score;
 									//delete b->PVNode;
-									b->PVNode = newBoard;
+									//b->PVNode = newBoard;
 									b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 								}
 								else
@@ -677,17 +677,16 @@ short int alpha_beta_moves(board_small* b, char player, short int alpha, short i
 				{
 					board_small* newBoard = new board_small();
 					memcpy(newBoard, b, sizeof(board_small));
-					newBoard->PVNode = NULL;
+					//newBoard->PVNode = NULL;
 					newBoard->PVCoord = -1;
 					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-					(*count)++;
-					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1, count);
+					short int score = -alpha_beta_fast(newBoard, opponent, -beta, -alpha, depth - 1);
 					allMoves->push_back(newBoard);
 					if (score > bestScore)
 					{
 						bestScore = score;
 						//delete b->PVNode;
-						b->PVNode = newBoard;
+						//b->PVNode = newBoard;
 						b->PVCoord = 9 * (3 * gridY + y) + 3 * gridX + x;
 					}
 					else
@@ -708,7 +707,45 @@ short int alpha_beta_moves(board_small* b, char player, short int alpha, short i
 	return bestScore;
 }
 
-short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha, short int beta, char depth, unsigned int* count, vector<board_small*>* allMoves)
+void FillArray(board_small* b, int player, int maxDepth, int currDepth, int index)
+{
+	if (currDepth > maxDepth)
+		return;
+	vector<board_small*> nextMoves;
+	int score = alpha_beta_moves(b, player, SHRT_MIN + 1, SHRT_MAX, 6, &nextMoves);
+	
+	int bestMove = b->PVCoord;
+	assert(bestMove != -1);
+	optMoves[3 * index + 0] = '0' + bestMove / 10;
+	optMoves[3 * index + 1] = '0' + bestMove % 10;
+
+	for (vector<board_small*>::iterator move = nextMoves.begin(); move != nextMoves.end(); ++move)
+	{
+		if ((*move)->playable != -1)
+		{
+			/*
+			int coord = (*move)->playedCoord;
+			int newIndex = index;
+			char gridX = boxCoord[coord % 9];
+			char gridY = boxCoord[coord / 9];
+			int newCoord = 3 * gridY + gridX;
+			newIndex += (newCoord + 1) * 81 * pow10[currDepth];
+			*/
+			int coord = (*move)->playedCoord;
+			int newRealIndex = index;
+			char gridX = boxCoord[coord % 9];
+			char gridY = boxCoord[coord / 9];
+			int newCoord = 3 * gridY + gridX;
+			newRealIndex += (newCoord + 1) * 81 * pow10[currDepth];
+
+			FillArray((*move), getOpponent(player), maxDepth, currDepth + 1, newRealIndex);
+		}
+		delete(*move);
+	}
+}
+
+/*
+short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha, short int beta, char depth, vector<board_small*>* allMoves)
 {
 	if (b->winner != 0 || depth <= 0)
 	{
@@ -721,7 +758,7 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 	if (b->PVCoord != -1)
 	{
 		vector<board_small*> newMoves;
-		short int score = -PVSearchWithAllMoves(b->PVNode, opponent, -beta, -alpha, depth - 1, count, &newMoves);
+		short int score = -PVSearchWithAllMoves(b->PVNode, opponent, -beta, -alpha, depth - 1, &newMoves);
 		if (score > bestScore)
 		{
 			allMoves->swap(newMoves);
@@ -771,10 +808,8 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 									memcpy(newBoard, b, sizeof(board_small));
 									newBoard->PVNode = NULL;
 									newBoard->PVCoord = -1;
-									newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-									(*count)++;
 									vector<board_small*> newMoves;
-									short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 2, count, &newMoves); //Subtract 2 from depth to improve performance when encountering full-board moves.
+									short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, &newMoves); //Subtract 2 from depth to improve performance when encountering full-board moves.
 
 									if (alpha < score && score < beta)
 									{
@@ -785,7 +820,7 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 										newMoves.clear();
 										newBoard->PVNode = NULL;
 										newBoard->PVCoord = -1;
-										score = -alpha_beta_moves(newBoard, opponent, -beta, -alpha, depth - 2, count, &newMoves);
+										score = -alpha_beta_moves(newBoard, opponent, -beta, -alpha, depth - 1, &newMoves);
 									}
 
 									if (score > bestScore || PVCoord == -1)
@@ -846,9 +881,8 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 						newBoard->PVNode = NULL;
 						newBoard->PVCoord = -1;
 						newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
-						(*count)++;
 						vector<board_small*> newMoves;
-						short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, count, &newMoves); 
+						short int score = -alpha_beta_moves(newBoard, opponent, -(alpha + 1), -alpha, depth - 1, &newMoves);
 
 						if (alpha < score && score < beta)
 						{
@@ -859,7 +893,7 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 							newMoves.clear();
 							newBoard->PVNode = NULL;
 							newBoard->PVCoord = -1;
-							score = -alpha_beta_moves(newBoard, opponent, -beta, -alpha, depth - 1, count, &newMoves);
+							score = -alpha_beta_moves(newBoard, opponent, -beta, -alpha, depth - 1, &newMoves);
 						}
 
 						if (score > bestScore || PVCoord == -1)
@@ -906,185 +940,245 @@ short int PVSearchWithOpponentMoves(board_small* b, char player, short int alpha
 	b->PVNode = PVNode;
 	return bestScore;
 }
-
+*/
 int main()
 {
-	int max_timebank = 0;
-	int time_per_move = 0;
-	int round = 0;
-	int move = 0;
-	string player_names;
-	string your_bot;
-	int your_botid = 0;
+	//fill_n(optMoves, 81000000, -1);
+	for (int i = 0; i <81000000; ++i)
+	{
+		optMoves[3 * i + 0] = '-';
+		optMoves[3 * i + 1] = '1';
+		optMoves[3 * i + 2] = '\n';
+	}
+	//ofstream file;
+	//file.open("moves.txt");
+	FILE* pFile;
+	pFile = fopen("moves.txt", "w");
 
-	board_small* smallB = new board_small();
+	board_small* b = new board_small();
+	b->playable = -1;
+	int player = 1;
 	
-	string input = "";
-	string compare = "";
-
-	getline(cin, input);
-	compare = "settings timebank ";
-	if (input.compare(0, compare.length(), compare) == 0)
+	for (int gridY = 0; gridY < 3; ++gridY)
 	{
-		input.erase(0, compare.length());
-		max_timebank = std::stoi(input);
-	}
-
-	getline(cin, input);
-	compare = "settings time_per_move ";
-	if (input.compare(0, compare.length(), compare) == 0)
-	{
-		input.erase(0, compare.length());
-		time_per_move = std::stoi(input);
-	}
-
-	getline(cin, input);
-	compare = "settings player_names ";
-	if (input.compare(0, compare.length(), compare) == 0)
-	{
-		input.erase(0, compare.length());
-		player_names = input;
-	}
-
-	getline(cin, input);
-	compare = "settings your_bot ";
-	if (input.compare(0, compare.length(), compare) == 0)
-	{
-		input.erase(0, compare.length());
-		your_bot = input;
-	}
-
-	getline(cin, input);
-	compare = "settings your_botid ";
-	if (input.compare(0, compare.length(), compare) == 0)
-	{
-		input.erase(0, compare.length());
-		your_botid = std::stoi(input);
-	}
-	
-	vector<board_small*> nextMoves;
-	char depth = 11;
-	while (1)
-	{
-		
-		
-		unsigned int count = 0;
-		board_small* newBoard = new board_small();
-
-		getline(cin, input);
-		compare = "update game round ";
-		if (input.compare(0, compare.length(), compare) == 0)
+		for (int y = 0; y < 3; ++y)
 		{
-			input.erase(0, compare.length());
-			round = std::stoi(input);
-		}
-		
-		getline(cin, input);
-		compare = "update game move ";
-		if (input.compare(0, compare.length(), compare) == 0)
-		{
-			input.erase(0, compare.length());
-			move = std::stoi(input);
-		}
-
-		getline(cin, input);
-		compare = "update game field ";
-		if (input.compare(0, compare.length(), compare) == 0)
-		{
-			input.erase(0, compare.length());
-			std::istringstream ss(input);
-			for (int gridY = 0; gridY < 3; ++gridY)
+			for (int gridX = 0; gridX < 3; ++gridX)
 			{
-				for (int y = 0; y < 3; ++y)
+				for (int x = 0; x < 3; ++x)
 				{
-					for (int gridX = 0; gridX < 3; ++gridX)
-					{
-						for (int x = 0; x < 3; ++x)
-						{
-							string boxVal;
-							getline(ss, boxVal, ',');
-							newBoard->field[gridX][gridY] += pow3[3 * y + x] * stoi(boxVal);
-						}
-					}
+					board_small* newBoard = new board_small();
+					memcpy(newBoard, b, sizeof(board_small));
+					newBoard->play_move(player, 3 * gridX + x, 3 * gridY + y);
+					FillArray(newBoard, getOpponent(player), 6, 0, 9*(3*gridY + y) + 3*gridX + x);
+					delete newBoard;
+					cout << ".";
+				}
+				cout << " ";
+			}
+			cout << endl;
+		}
+		cout << endl;
+	}
+	fwrite(optMoves, sizeof(char), sizeof(optMoves), pFile);
+	fclose(pFile);
+	/*
+	for (int i = 0; i < 81000000; ++i)
+	{
+		int move = optMoves[i];
+		if (move == -1)
+		{
+			file << "-1";
+		}
+		else if (move < 10)
+		{
+			file << "0" << to_string(move);
+		}
+		else {
+			file << to_string(move);
+		}
+		file << endl;
+	}
+
+	file.close();
+	*/
+
+	cout << "Done." << endl;
+
+	while (1);
+
+/*	
+	vector<board_small*> moveList;
+	vector<int> realIndexList;
+	int indexList_index = 0;
+	//moveList.push_back(b);
+	int player = 1;
+
+	vector<board_small*> nextMoves;
+	int score = alpha_beta_moves(b, player, SHRT_MIN + 1, SHRT_MAX, 5, &nextMoves);
+	//sort(nextMoves.begin(), nextMoves.end(), less_than_key());
+	moveList.insert(moveList.end(), nextMoves.begin(), nextMoves.end());
+
+	delete b;
+
+	for (int j = 0; j < nextMoves.size(); ++j)
+	{
+		int newIndex = nextMoves[j]->playedCoord;
+		realIndexList.push_back(newIndex);
+	}
+
+	for (int depth = 0; depth < 7; ++depth)
+	{
+		vector<board_small*> newMoveList;
+		vector<int> newRealIndexList;
+		for (int i = 0; i < moveList.size(); ++i)
+		{
+			vector<board_small*> nextMoves;
+			//int score = PVSearchWithAllMoves(moveList[i], player, SHRT_MIN + 1, SHRT_MAX, 2, &nextMoves);
+			int score = alpha_beta_moves(moveList[i], player, SHRT_MIN + 1, SHRT_MAX, 2, &nextMoves);
+			
+			for (int j = nextMoves.size() - 1; j >= 0; j--)
+			{
+				if (nextMoves[j]->playable == -1)
+				{
+					/*
+					string newIndex = indexList[indexList_index];
+					newIndex += "->";
+					int coord = nextMoves[j]->playedCoord;
+					if (coord < 10)
+						newIndex += "0";
+					newIndex += to_string(coord);
+					cout << newIndex << " Deleted." << endl;
+					*/
+/*					delete nextMoves[j];
+					nextMoves.erase(nextMoves.begin() + j);
+				}
+				else {
+					//delete nextMoves[j]->PVNode;
+					//nextMoves[j]->PVNode = NULL;
+					nextMoves[j]->PVCoord = -1;
 				}
 			}
+			
+			newMoveList.insert(newMoveList.end(), nextMoves.begin(), nextMoves.end());
+			
+			for (int j = 0; j < nextMoves.size(); ++j)
+			{
+				int coord = nextMoves[j]->playedCoord;
+				int newRealIndex = realIndexList[indexList_index];
+				char gridX = boxCoord[coord % 9];
+				char gridY = boxCoord[coord / 9];
+				int newCoord = 3 * gridY + gridX;
+				newRealIndex += (newCoord + 1) * 81 * pow10[depth];
+				newRealIndexList.push_back(newRealIndex);
+			}
+			
+			//if (indexList_index >= 0)
+			//	file << indexList[indexList_index] << " " << realIndexList[indexList_index] << endl;
+			optMoves[realIndexList[indexList_index]] = moveList[i]->PVCoord;
+
+			indexList_index++;
+
+			//moveList[i]->PVNode = NULL;
+			//delete moveList[i];
+			if (i % (moveList.size() / 10) == 0)
+				cout << ((float)i / moveList.size())*100 << "% Done." << endl;
+		}
+		moveList.swap(newMoveList);
+		realIndexList.swap(newRealIndexList);
+
+		for (vector<board_small*>::iterator it = newMoveList.begin(); it != newMoveList.end(); ++it)
+		{
+			delete (*it);
 		}
 
-		bool openBoard = false;
-		newBoard->playable = -1;
-		getline(cin, input);
-		compare = "update game macroboard ";
-		if (input.compare(0, compare.length(), compare) == 0)
+		indexList_index = 0;
+		cout << "Done with depth " << depth << endl;
+		player = getOpponent(player);
+	}
+
+	for (vector<board_small*>::iterator it = moveList.begin(); it != moveList.end(); ++it)
+	{
+		delete (*it);
+	}
+
+	for (int i = 0; i < 81000000; ++i)
+	{
+		int move = optMoves[i];
+		if (move == -1)
 		{
-			input.erase(0, compare.length());
-			std::istringstream ss(input);
+			file << "-1";
+		}
+		else if (move < 10)
+		{
+			file << "0" << to_string(move);
+		}
+		else {
+			file << to_string(move);
+		}
+		file << endl;
+	}
+	
+	file.close();
+*/
+	/*
+	vector<board_small*> moves;
+	vector<vector<int>> indices;
+	moves.push_back(b);
+	for (int i = 0; i < 5; ++i)
+	{
+		vector<board_small*> newMoves;
+		vector<vector<int>> newIndices;
+		vector<vector<int>>::iterator indexIt = indices.begin();
+		for (vector<board_small*>::iterator it = moves.begin(); it != moves.end(); it++)
+		{
 			for (int gridY = 0; gridY < 3; ++gridY)
 			{
 				for (int gridX = 0; gridX < 3; ++gridX)
 				{
-					string gridVal;
-					getline(ss, gridVal, ',');
-					int val = stoi(gridVal);
-					if (val == -1)
+					if ((*it)->playable == 3 * gridY + gridX || ((*it)->playable == -1 && ((*it)->macroBoard / pow4[3 * gridY + gridX]) % 4 == 0))
 					{
-						if (openBoard == false)
+						for (int y = 0; y < 3; ++y)
 						{
-							if (newBoard->playable != -1)
+							for (int x = 0; x < 3; ++x)
 							{
-								openBoard = true;
-								newBoard->playable = -1;
-							}
-							else {
-								newBoard->playable = 3*gridY + gridX;
+								if (((*it)->field[gridX][gridY] / pow3[3 * y + x]) % 3 == 0)
+								{
+									board_small* newBoard = new board_small();
+									memcpy(newBoard, b, sizeof(board_small));
+									newBoard->play_move(1, 3 * gridX + x, 3 * gridY + y);
+									int score = alpha_beta_fast(newBoard, 1, SHRT_MIN + 1, SHRT_MAX, 6);
+									newMoves.push_back(newBoard);
+									vector<int> nextIndices;
+									if (indices.size() != 0)
+									{
+										nextIndices = (*indexIt);
+									}
+									if (i == 0)
+										nextIndices.push_back(9 * (3 * gridY + y) + 3 * gridX + x);
+									else
+										nextIndices.push_back(3 * y + x);
+									newIndices.push_back(nextIndices);
+									if (i == 4)
+									{
+										cout << (*nextIndices.begin());
+										for (vector<int>::iterator j = nextIndices.begin() + 1; j != nextIndices.end(); ++j)
+										{
+											cout << "->" << (*j);
+										}
+										cout << " = " << score << endl;
+									}
+								}
 							}
 						}
-						val = 0;
 					}
-					newBoard->macroBoard += pow4[3 * gridY + gridX] * gridWinners[newBoard->field[gridX][gridY]];
 				}
 			}
+			if (indices.size() != 0)
+				indexIt++;
 		}
-		newBoard->evaluate_score();
-		int timeBank;
-		getline(cin, input);
-		compare = "action move ";
-		if (input.compare(0, compare.length(), compare) == 0)
-		{
-			input.erase(0, compare.length());
-			timeBank = std::stoi(input);
-		}
-
-		for (vector<board_small*>::iterator it = nextMoves.begin(); it != nextMoves.end(); ++it)
-		{
-			if (*(*it) == *newBoard)
-			{
-				newBoard->PVNode = (*it)->PVNode;
-				(*it)->PVNode = NULL;
-				newBoard->PVCoord = (*it)->PVCoord;
-				cerr << "Found previous Pricipal Variation with coordinate (" << newBoard->PVCoord % 9 << "," << newBoard->PVCoord / 9 << ")" << endl;
-			}
-			delete (*it);
-		}
-		nextMoves.clear();
-
-		int time1 = clock();
-		int score = PVSearchWithOpponentMoves(newBoard, your_botid, SHRT_MIN + 1, SHRT_MAX, depth, &count, &nextMoves);
-		cout << "place_move " << newBoard->PVCoord % 9 << " " << newBoard->PVCoord / 9 << endl;
-		int time2 = clock();
-
-		int timeInMs = (time2 - time1) * 1000.0 / (CLOCKS_PER_SEC);
-		int countPerSec = count * 1000.0 / timeInMs;
-
-		cerr << "Depth " << (int)depth << " : Score " << score << " : (" << newBoard->PVCoord % 9 << "," << newBoard->PVCoord / 9 << ") : " << timeInMs << " ms : " << count << " Nodes (" << countPerSec << " nps)" << endl;
-
-		if (timeInMs > timeBank / 7)
-			depth--;
-		else if (timeInMs < timeBank / 12)
-			depth++;
-
-		newBoard->PVNode->draw_board();
-
-		
+		newMoves.swap(moves);
+		newIndices.swap(indices);
 	}
-	while (1);
+	*/
 }
